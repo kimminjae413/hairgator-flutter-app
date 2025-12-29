@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "800038006875",
+    "project_id": "hairgatormenu-4a43e",
+    "storage_bucket": "hairgatormenu-4a43e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:800038006875:android:54bfacf26a453507e0cf7e",
+        "android_client_info": {
+          "package_name": "com.hairgator"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "800038006875-u1lotuq74rob8qpvga65mk65cvqnqjip.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLGRJ_SDYGMveVjkCciuApiuI5sw98PJ8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "800038006875-u1lotuq74rob8qpvga65mk65cvqnqjip.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
