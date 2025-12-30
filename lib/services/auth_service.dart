@@ -105,7 +105,7 @@ class AuthService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('https://hairgator.kr/.netlify/functions/kakao-token'),
+        Uri.parse('https://app.hairgator.kr/.netlify/functions/kakao-token'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'kakaoAccessToken': kakaoAccessToken,

@@ -44,21 +44,21 @@ class FirestoreService {
         enabled: true,
         menuName: 'Style Menu',
         meta: 'styleMenuTab',
-        url: 'https://hairgator.kr',
+        url: 'https://app.hairgator.kr',
       ),
       TabConfig(
         order: 3,
         enabled: true,
         menuName: '상품',
         meta: 'pkg_iamportPayment_productMulti',
-        url: 'https://hairgator.kr/#products',
+        url: 'https://app.hairgator.kr/#products',
       ),
       TabConfig(
         order: 4,
         enabled: true,
         menuName: 'My',
         meta: 'myPage',
-        url: 'https://hairgator.kr/#mypage',
+        url: 'https://app.hairgator.kr/#mypage',
       ),
     ];
   }

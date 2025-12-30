@@ -41,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       )
-      ..loadRequest(Uri.parse('https://hairgator.kr'));
+      ..loadRequest(Uri.parse('https://app.hairgator.kr'));
   }
 
   Future<void> _loadTabs() async {
@@ -56,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _currentIndex = index);
 
     final tab = _tabs[index];
-    String url = tab.url ?? 'https://hairgator.kr';
+    String url = tab.url ?? 'https://app.hairgator.kr';
 
     // URL에 userId 파라미터가 있으면 실제 userId로 대체
     // TODO: 로그인 후 실제 userId 사용
