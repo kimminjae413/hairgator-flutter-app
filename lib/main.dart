@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
@@ -8,8 +9,12 @@ import 'screens/login_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 카카오 SDK 초기화
-  kakao.KakaoSdk.init(nativeAppKey: '0f63cd86d49dd376689358cac993a842');
+  // 카카오 SDK 초기화 (iPad 등에서 실패해도 앱은 실행)
+  try {
+    kakao.KakaoSdk.init(nativeAppKey: '0f63cd86d49dd376689358cac993a842');
+  } catch (e) {
+    debugPrint('Kakao SDK init failed: $e');
+  }
 
   await Firebase.initializeApp();
   runApp(const HairgatorApp());
