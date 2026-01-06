@@ -1,43 +1,54 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
+import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 
-// 디버그 상태 저장
-String debugStatus = 'Starting...';
-
-void main() async {
-  debugStatus = '1. WidgetsBinding...';
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // 카카오 SDK 초기화 (iPad 등에서 실패해도 앱은 실행)
-  debugStatus = '2. Kakao SDK...';
-  try {
-    kakao.KakaoSdk.init(nativeAppKey: '0f63cd86d49dd376689358cac993a842');
-    debugStatus = '2. Kakao SDK OK';
-  } catch (e) {
-    debugStatus = '2. Kakao SDK FAIL: $e';
-    debugPrint('Kakao SDK init failed: $e');
-  }
-
-  debugStatus = '3. Firebase init...';
-  try {
-    await Firebase.initializeApp();
-    debugStatus = '3. Firebase OK';
-  } catch (e) {
-    debugStatus = '3. Firebase FAIL: $e';
-    debugPrint('Firebase init failed: $e');
-  }
-
-  debugStatus = '4. Running app...';
+void main() {
+  // 먼저 앱 실행 (초기화는 앱 내에서)
   runApp(const HairgatorApp());
 }
 
-class HairgatorApp extends StatelessWidget {
+class HairgatorApp extends StatefulWidget {
   const HairgatorApp({super.key});
+
+  @override
+  State<HairgatorApp> createState() => _HairgatorAppState();
+}
+
+class _HairgatorAppState extends State<HairgatorApp> {
+  String _status = 'v33: Starting...';
+  bool _initialized = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    try {
+      setState(() => _status = 'v33: WidgetsBinding...');
+      WidgetsFlutterBinding.ensureInitialized();
+
+      setState(() => _status = 'v33: Firebase init...');
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+
+      setState(() {
+        _status = 'v33: Ready!';
+        _initialized = true;
+      });
+    } catch (e) {
+      setState(() {
+        _status = 'v33: ERROR';
+        _error = e.toString();
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,8 +58,8 @@ class HairgatorApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.dark(
-          primary: const Color(0xFFE91E63), // 핑크
-          secondary: const Color(0xFF4A90E2), // 블루
+          primary: const Color(0xFFE91E63),
+          secondary: const Color(0xFF4A90E2),
           surface: const Color(0xFF1A1A1A),
         ),
         scaffoldBackgroundColor: Colors.black,
@@ -58,65 +69,76 @@ class HairgatorApp extends StatelessWidget {
           unselectedItemColor: Colors.grey,
         ),
       ),
-      home: const AuthWrapper(),
+      home: _initialized
+        ? const AuthWrapper()
+        : _buildLoadingScreen(),
+    );
+  }
+
+  Widget _buildLoadingScreen() {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(color: Color(0xFFE91E63)),
+            const SizedBox(height: 30),
+            Container(
+              padding: const EdgeInsets.all(20),
+              margin: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.grey[900],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    _status,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      _error!,
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
 // 로그인 상태에 따라 화면 분기
-class AuthWrapper extends StatefulWidget {
+class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
-
-  @override
-  State<AuthWrapper> createState() => _AuthWrapperState();
-}
-
-class _AuthWrapperState extends State<AuthWrapper> {
-  String _authStatus = 'Checking auth...';
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // 로딩 중
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
+          return const Scaffold(
             backgroundColor: Colors.black,
             body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(
-                    color: Color(0xFFE91E63),
-                  ),
-                  const SizedBox(height: 20),
-                  // 디버그 정보 표시
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    margin: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[900],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'DEBUG v31:\n$debugStatus\nAuth: waiting...',
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-              ),
+              child: CircularProgressIndicator(color: Color(0xFFE91E63)),
             ),
           );
         }
-
-        // 로그인 됨 -> 홈 화면
         if (snapshot.hasData) {
           return const HomeScreen();
         }
-
-        // 로그인 안 됨 -> 로그인 화면
         return const LoginScreen();
       },
     );
