@@ -66,6 +66,14 @@
 				<string>kakao0f63cd86d49dd376689358cac993a842</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.800038006875-49a9o4l9tpp3llggo0gphi1mmv4m8mkk</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>
