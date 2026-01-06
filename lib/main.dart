@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -18,7 +19,7 @@ class HairgatorApp extends StatefulWidget {
 }
 
 class _HairgatorAppState extends State<HairgatorApp> {
-  String _status = 'v33: Starting...';
+  String _status = 'v34: Starting...';
   bool _initialized = false;
   String? _error;
 
@@ -30,21 +31,25 @@ class _HairgatorAppState extends State<HairgatorApp> {
 
   Future<void> _initializeApp() async {
     try {
-      setState(() => _status = 'v33: WidgetsBinding...');
+      setState(() => _status = 'v34: WidgetsBinding...');
       WidgetsFlutterBinding.ensureInitialized();
 
-      setState(() => _status = 'v33: Firebase init...');
+      // 카카오 SDK 초기화
+      setState(() => _status = 'v34: Kakao SDK...');
+      kakao.KakaoSdk.init(nativeAppKey: '0f63cd86d49dd376689358cac993a842');
+
+      setState(() => _status = 'v34: Firebase init...');
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
 
       setState(() {
-        _status = 'v33: Ready!';
+        _status = 'v34: Ready!';
         _initialized = true;
       });
     } catch (e) {
       setState(() {
-        _status = 'v33: ERROR';
+        _status = 'v34: ERROR';
         _error = e.toString();
       });
     }
