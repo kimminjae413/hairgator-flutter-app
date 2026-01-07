@@ -1,5 +1,8 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/tab_config.dart';
 import '../services/firestore_service.dart';
@@ -80,8 +83,15 @@ class _HomeScreenState extends State<HomeScreen> {
             print('WebView error: ${error.description}');
           },
         ),
-      )
-      ..loadRequest(Uri.parse(_getUrlWithToken('https://app.hairgator.kr')));
+      );
+
+    // Android 스크롤 성능 개선
+    if (_webViewController.platform is AndroidWebViewController) {
+      final androidController = _webViewController.platform as AndroidWebViewController;
+      androidController.setMediaPlaybackRequiresUserGesture(false);
+    }
+
+    _webViewController.loadRequest(Uri.parse(_getUrlWithToken('https://app.hairgator.kr')));
   }
 
   String _getUrlWithToken(String baseUrl) {
@@ -210,8 +220,18 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            // WebView
-            WebViewWidget(controller: _webViewController),
+            // WebView with improved touch handling
+            WebViewWidget(
+              controller: _webViewController,
+              gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                Factory<VerticalDragGestureRecognizer>(
+                  () => VerticalDragGestureRecognizer(),
+                ),
+                Factory<HorizontalDragGestureRecognizer>(
+                  () => HorizontalDragGestureRecognizer(),
+                ),
+              },
+            ),
 
             // 로딩 인디케이터
             if (_isLoading)
