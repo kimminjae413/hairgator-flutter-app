@@ -43,26 +43,38 @@ class AuthService {
   }
 
   // 카카오 로그인
+  // 마지막 카카오 로그인 에러 (디버깅용)
+  String? lastKakaoError;
+
   Future<UserCredential?> signInWithKakao() async {
+    lastKakaoError = null;
     try {
+      print('[KAKAO] 1. 카카오 로그인 시작');
+
       // 카카오톡 설치 여부에 따라 로그인 방식 선택
       kakao.OAuthToken token;
+      final isInstalled = await kakao.isKakaoTalkInstalled();
+      print('[KAKAO] 2. 카카오톡 설치됨: $isInstalled');
 
-      if (await kakao.isKakaoTalkInstalled()) {
+      if (isInstalled) {
         // 카카오톡으로 로그인 (앱투앱)
+        print('[KAKAO] 3. 카카오톡 앱으로 로그인 시도...');
         token = await kakao.UserApi.instance.loginWithKakaoTalk();
-        print('카카오톡으로 로그인 성공: ${token.accessToken}');
+        print('[KAKAO] 4. 카카오톡 로그인 성공: ${token.accessToken.substring(0, 20)}...');
       } else {
         // 카카오 계정으로 로그인 (웹뷰)
+        print('[KAKAO] 3. 카카오 계정으로 로그인 시도...');
         token = await kakao.UserApi.instance.loginWithKakaoAccount();
-        print('카카오 계정으로 로그인 성공: ${token.accessToken}');
+        print('[KAKAO] 4. 카카오 계정 로그인 성공: ${token.accessToken.substring(0, 20)}...');
       }
 
       // 카카오 사용자 정보 가져오기
+      print('[KAKAO] 5. 사용자 정보 가져오기...');
       final kakaoUser = await kakao.UserApi.instance.me();
-      print('카카오 사용자 정보: ${kakaoUser.id}, ${kakaoUser.kakaoAccount?.email}');
+      print('[KAKAO] 6. 사용자 정보: id=${kakaoUser.id}, email=${kakaoUser.kakaoAccount?.email}');
 
       // 서버에서 Firebase Custom Token 받아오기
+      print('[KAKAO] 7. Firebase Custom Token 요청...');
       final customToken = await _getFirebaseCustomToken(
         kakaoAccessToken: token.accessToken,
         kakaoId: kakaoUser.id.toString(),
@@ -72,14 +84,19 @@ class AuthService {
       );
 
       if (customToken == null) {
-        print('Firebase Custom Token 생성 실패');
+        lastKakaoError = 'Firebase Custom Token 생성 실패 (서버 응답 없음)';
+        print('[KAKAO] ERROR: $lastKakaoError');
         return null;
       }
+      print('[KAKAO] 8. Custom Token 받음: ${customToken.substring(0, 20)}...');
 
       // Firebase Custom Token으로 로그인
+      print('[KAKAO] 9. Firebase 로그인 시도...');
       final userCredential = await _auth.signInWithCustomToken(customToken);
+      print('[KAKAO] 10. Firebase 로그인 성공: ${userCredential.user?.uid}');
 
       // Firestore에 사용자 정보 저장/업데이트
+      print('[KAKAO] 11. Firestore 저장...');
       await _saveUserToFirestore(
         userCredential.user,
         provider: 'kakao',
@@ -87,10 +104,13 @@ class AuthService {
         displayName: kakaoUser.kakaoAccount?.profile?.nickname,
         photoURL: kakaoUser.kakaoAccount?.profile?.profileImageUrl,
       );
+      print('[KAKAO] 12. 완료!');
 
       return userCredential;
-    } catch (e) {
-      print('카카오 로그인 에러: $e');
+    } catch (e, stackTrace) {
+      lastKakaoError = '카카오 로그인 에러: $e';
+      print('[KAKAO] ERROR: $lastKakaoError');
+      print('[KAKAO] StackTrace: $stackTrace');
       return null;
     }
   }

@@ -47,7 +47,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if (result != null && mounted) {
       _navigateToHome();
     } else {
-    _showError('카카오 로그인에 실패했습니다.');
+      // 상세 에러 메시지 표시 (디버깅용)
+      final errorMsg = _authService.lastKakaoError ?? '카카오 로그인에 실패했습니다.';
+      _showError(errorMsg);
     }
   }
 
