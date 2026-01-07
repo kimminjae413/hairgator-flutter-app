@@ -72,6 +72,12 @@ class _HomeScreenState extends State<HomeScreen> {
             setState(() => _isLoading = false);
             // 페이지 로드 후 토큰으로 자동 로그인 시도
             _injectAuthToken();
+
+            // 로그인 페이지가 로드되면 Flutter 로그아웃 처리
+            if (url.contains('login.html') || url.contains('/login')) {
+              print('[WebView] 웹앱 로그인 페이지 감지 → Flutter 로그아웃');
+              _auth.signOut();
+            }
           },
           onWebResourceError: (WebResourceError error) {
             print('WebView error: ${error.description}');
