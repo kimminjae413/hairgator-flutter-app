@@ -24,7 +24,21 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _initWebViewWithAuth();
-    _loadTabs();
+    _watchTabs(); // 실시간 구독
+  }
+
+  /// Firestore 탭 설정 실시간 구독
+  void _watchTabs() {
+    _firestoreService.watchTabConfigs().listen((tabs) {
+      print('[HomeScreen] 탭 실시간 업데이트: ${tabs.map((t) => t.menuName).toList()}');
+      setState(() {
+        _tabs = tabs;
+        _isLoading = false;
+      });
+    }, onError: (e) {
+      print('[HomeScreen] 탭 구독 오류: $e');
+      setState(() => _isLoading = false);
+    });
   }
 
   Future<void> _initWebViewWithAuth() async {
@@ -84,14 +98,6 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       print('[WebView] JS injection error: $e');
     }
-  }
-
-  Future<void> _loadTabs() async {
-    final tabs = await _firestoreService.loadTabConfigs();
-    setState(() {
-      _tabs = tabs;
-      _isLoading = false;
-    });
   }
 
   void _onTabTapped(int index) {
