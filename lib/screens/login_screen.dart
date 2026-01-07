@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
 import '../services/auth_service.dart';
 import 'home_screen.dart';
 
@@ -15,6 +16,28 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _isLoginMode = true;
+  String _kakaoDebugInfo = 'v43: 확인 중...';
+
+  @override
+  void initState() {
+    super.initState();
+    _checkKakaoTalkInstalled();
+  }
+
+  Future<void> _checkKakaoTalkInstalled() async {
+    try {
+      final isInstalled = await kakao.isKakaoTalkInstalled();
+      setState(() {
+        _kakaoDebugInfo = 'v43: 카카오톡 ${isInstalled ? "설치됨 ✅" : "미설치 ❌"}';
+      });
+      print('[DEBUG] isKakaoTalkInstalled: $isInstalled');
+    } catch (e) {
+      setState(() {
+        _kakaoDebugInfo = 'v43: 확인 오류 - $e';
+      });
+      print('[DEBUG] isKakaoTalkInstalled error: $e');
+    }
+  }
 
   @override
   void dispose() {
@@ -162,6 +185,22 @@ class _LoginScreenState extends State<LoginScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey[400],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // 디버그 정보 (카카오톡 설치 상태)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[800],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              _kakaoDebugInfo,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.white70,
+                              ),
                             ),
                           ),
                         ],

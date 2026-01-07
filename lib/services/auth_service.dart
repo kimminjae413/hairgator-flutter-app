@@ -49,13 +49,19 @@ class AuthService {
   Future<UserCredential?> signInWithKakao() async {
     lastKakaoError = null;
     try {
-      print('[KAKAO] 1. 카카오 로그인 시작');
+      print('[KAKAO] ========== v43 카카오 로그인 시작 ==========');
+      print('[KAKAO] 1. 시작 시각: ${DateTime.now()}');
 
       kakao.OAuthToken token;
 
       // 카카오톡 설치 여부 먼저 확인
+      print('[KAKAO] 2. isKakaoTalkInstalled() 호출...');
       final isKakaoTalkInstalled = await kakao.isKakaoTalkInstalled();
-      print('[KAKAO] 2. 카카오톡 설치됨: $isKakaoTalkInstalled');
+      print('[KAKAO] 3. 카카오톡 설치됨: $isKakaoTalkInstalled');
+
+      // 추가 정보 출력
+      print('[KAKAO] 4. 플랫폼 정보: iOS');
+      print('[KAKAO] 5. SDK 초기화 상태: main()에서 완료');
 
       if (isKakaoTalkInstalled) {
         try {
