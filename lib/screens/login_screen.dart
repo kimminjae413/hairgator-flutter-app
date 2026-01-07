@@ -16,7 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _isLoginMode = true;
-  String _kakaoDebugInfo = 'v46: 확인 중...';
+  String _kakaoDebugInfo = 'v47: 확인 중...';
   String? _lastError;
 
   @override
@@ -29,12 +29,12 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final isInstalled = await kakao.isKakaoTalkInstalled();
       setState(() {
-        _kakaoDebugInfo = 'v46: 카카오톡 ${isInstalled ? "설치됨 ✅" : "미설치 ❌"}';
+        _kakaoDebugInfo = 'v47: 카카오톡 ${isInstalled ? "설치됨 ✅" : "미설치 ❌"}';
       });
       print('[DEBUG] isKakaoTalkInstalled: $isInstalled');
     } catch (e) {
       setState(() {
-        _kakaoDebugInfo = 'v46: 확인 오류 - $e';
+        _kakaoDebugInfo = 'v47: 확인 오류 - $e';
       });
       print('[DEBUG] isKakaoTalkInstalled error: $e');
     }
