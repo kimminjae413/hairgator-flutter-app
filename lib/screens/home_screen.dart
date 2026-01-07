@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/tab_config.dart';
 import '../services/firestore_service.dart';
 
@@ -12,19 +13,32 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final FirestoreService _firestoreService = FirestoreService();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   List<TabConfig> _tabs = [];
   int _currentIndex = 0;
   bool _isLoading = true;
   late WebViewController _webViewController;
+  String? _idToken;
 
   @override
   void initState() {
     super.initState();
-    _initWebView();
+    _initWebViewWithAuth();
     _loadTabs();
   }
 
-  void _initWebView() {
+  Future<void> _initWebViewWithAuth() async {
+    // Firebase ID Token 가져오기
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        _idToken = await user.getIdToken();
+        print('[WebView] Firebase ID Token 획득: ${_idToken?.substring(0, 20)}...');
+      }
+    } catch (e) {
+      print('[WebView] Token 획득 실패: $e');
+    }
+
     _webViewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.black)
@@ -35,13 +49,41 @@ class _HomeScreenState extends State<HomeScreen> {
           },
           onPageFinished: (String url) {
             setState(() => _isLoading = false);
+            // 페이지 로드 후 토큰으로 자동 로그인 시도
+            _injectAuthToken();
           },
           onWebResourceError: (WebResourceError error) {
             print('WebView error: ${error.description}');
           },
         ),
       )
-      ..loadRequest(Uri.parse('https://app.hairgator.kr'));
+      ..loadRequest(Uri.parse(_getUrlWithToken('https://app.hairgator.kr')));
+  }
+
+  String _getUrlWithToken(String baseUrl) {
+    if (_idToken != null) {
+      final separator = baseUrl.contains('?') ? '&' : '?';
+      return '$baseUrl${separator}firebaseToken=$_idToken';
+    }
+    return baseUrl;
+  }
+
+  Future<void> _injectAuthToken() async {
+    if (_idToken == null) return;
+
+    // JavaScript로 토큰 전달하여 자동 로그인
+    try {
+      await _webViewController.runJavaScript('''
+        if (window.handleFirebaseToken) {
+          window.handleFirebaseToken('$_idToken');
+        } else {
+          console.log('[Flutter] Firebase token ready: ${_idToken?.substring(0, 20)}...');
+          window.flutterFirebaseToken = '$_idToken';
+        }
+      ''');
+    } catch (e) {
+      print('[WebView] JS injection error: $e');
+    }
   }
 
   Future<void> _loadTabs() async {
@@ -59,10 +101,15 @@ class _HomeScreenState extends State<HomeScreen> {
     String url = tab.url ?? 'https://app.hairgator.kr';
 
     // URL에 userId 파라미터가 있으면 실제 userId로 대체
-    // TODO: 로그인 후 실제 userId 사용
-    url = url.replaceAll('\${userInfo._id.oid}', 'guest');
+    final user = _auth.currentUser;
+    if (user != null) {
+      url = url.replaceAll('\${userInfo._id.oid}', user.uid);
+    } else {
+      url = url.replaceAll('\${userInfo._id.oid}', 'guest');
+    }
 
-    _webViewController.loadRequest(Uri.parse(url));
+    // 토큰 포함하여 로드
+    _webViewController.loadRequest(Uri.parse(_getUrlWithToken(url)));
   }
 
   @override
