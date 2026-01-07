@@ -141,7 +141,21 @@ class _HomeScreenState extends State<HomeScreen> {
     print('[HomeScreen] 탭 $index (${tab.menuName}) → #$hashRoute');
 
     // SPA 라우터 방식: JavaScript로 해시만 변경 (페이지 새로고침 없음)
+    // 사이드바도 닫기
     _webViewController.runJavaScript('''
+      // 사이드바 닫기
+      if (window.closeSidebar) {
+        window.closeSidebar();
+      }
+      var sidebar = document.getElementById('sidebar');
+      if (sidebar) {
+        sidebar.classList.remove('open');
+      }
+      var overlay = document.getElementById('sidebar-overlay');
+      if (overlay) {
+        overlay.style.display = 'none';
+      }
+
       window.location.hash = '$hashRoute';
       console.log('[Flutter] 탭 네비게이션: #$hashRoute');
     ''');
