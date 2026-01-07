@@ -210,9 +210,18 @@ class AuthService {
 
     // 이메일 우선순위: overrideEmail > user.email
     final email = overrideEmail ?? user.email ?? '';
+
+    // 1. 카카오 로그인인 경우 - kakao-token 서버에서 이미 처리했으므로 스킵
+    // (서버에서 kakaoId로 기존 사용자 매칭 로직 수행)
+    if (provider == 'kakao') {
+      print('[Firestore] 카카오 로그인 - 서버에서 이미 사용자 문서 처리됨');
+      return;
+    }
+
+    // 2. 일반 로그인 (Google, Email)
     final docId = email.isNotEmpty
         ? email.replaceAll('@', '_').replaceAll('.', '_')
-        : 'kakao_${kakaoId ?? user.uid}';
+        : user.uid;
 
     print('[Firestore] 사용자 저장 - email: $email, docId: $docId');
 
@@ -227,7 +236,6 @@ class AuthService {
         'displayName': displayName ?? user.displayName ?? '',
         'photoURL': photoURL ?? user.photoURL ?? '',
         'provider': provider,
-        'kakaoId': kakaoId,
         'tokenBalance': 200, // 신규 가입 시 200 토큰
         'plan': 'free',
         'createdAt': FieldValue.serverTimestamp(),
