@@ -51,28 +51,19 @@ class AuthService {
     try {
       print('[KAKAO] 1. 카카오 로그인 시작');
 
-      // 카카오톡 설치 여부에 따라 로그인 방식 선택
       kakao.OAuthToken token;
-      final isInstalled = await kakao.isKakaoTalkInstalled();
-      print('[KAKAO] 2. 카카오톡 설치됨: $isInstalled');
 
-      if (isInstalled) {
-        // 카카오톡으로 로그인 (앱투앱)
-        try {
-          print('[KAKAO] 3. 카카오톡 앱으로 로그인 시도...');
-          token = await kakao.UserApi.instance.loginWithKakaoTalk();
-          print('[KAKAO] 4. 카카오톡 로그인 성공: ${token.accessToken.substring(0, 20)}...');
-        } catch (talkError) {
-          // 카카오톡 로그인 실패 시 웹 로그인으로 폴백
-          print('[KAKAO] 카카오톡 로그인 실패, 웹으로 폴백: $talkError');
-          token = await kakao.UserApi.instance.loginWithKakaoAccount();
-          print('[KAKAO] 4. 카카오 계정 로그인 성공: ${token.accessToken.substring(0, 20)}...');
-        }
-      } else {
-        // 카카오 계정으로 로그인 (웹뷰)
-        print('[KAKAO] 3. 카카오톡 미설치, 카카오 계정으로 로그인 시도...');
+      // 무조건 카카오톡 앱 먼저 시도 → 실패하면 웹 로그인
+      try {
+        print('[KAKAO] 2. 카카오톡 앱으로 로그인 시도...');
+        token = await kakao.UserApi.instance.loginWithKakaoTalk();
+        print('[KAKAO] 3. 카카오톡 로그인 성공: ${token.accessToken.substring(0, 20)}...');
+      } catch (talkError) {
+        // 카카오톡 로그인 실패 (미설치 또는 에러) → 웹 로그인으로 폴백
+        print('[KAKAO] 카카오톡 앱 로그인 실패: $talkError');
+        print('[KAKAO] 2. 웹 로그인으로 폴백...');
         token = await kakao.UserApi.instance.loginWithKakaoAccount();
-        print('[KAKAO] 4. 카카오 계정 로그인 성공: ${token.accessToken.substring(0, 20)}...');
+        print('[KAKAO] 3. 카카오 계정 로그인 성공: ${token.accessToken.substring(0, 20)}...');
       }
 
       // 카카오 사용자 정보 가져오기
