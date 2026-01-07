@@ -111,12 +111,15 @@ class AuthService {
 
       // Firestore에 사용자 정보 저장/업데이트
       print('[KAKAO] 11. Firestore 저장...');
+      final kakaoEmail = kakaoUser.kakaoAccount?.email;
+      print('[KAKAO] 카카오 이메일: $kakaoEmail');
       await _saveUserToFirestore(
         userCredential.user,
         provider: 'kakao',
         kakaoId: kakaoUser.id,
         displayName: kakaoUser.kakaoAccount?.profile?.nickname,
         photoURL: kakaoUser.kakaoAccount?.profile?.profileImageUrl,
+        overrideEmail: kakaoEmail, // 카카오 이메일로 기존 사용자 매칭
       );
       print('[KAKAO] 12. 완료!');
 
@@ -201,13 +204,17 @@ class AuthService {
     int? kakaoId,
     String? displayName,
     String? photoURL,
+    String? overrideEmail, // 카카오 등 소셜 로그인 시 이메일 직접 전달
   }) async {
     if (user == null) return;
 
-    final email = user.email ?? '';
+    // 이메일 우선순위: overrideEmail > user.email
+    final email = overrideEmail ?? user.email ?? '';
     final docId = email.isNotEmpty
         ? email.replaceAll('@', '_').replaceAll('.', '_')
         : 'kakao_${kakaoId ?? user.uid}';
+
+    print('[Firestore] 사용자 저장 - email: $email, docId: $docId');
 
     final userDoc = _firestore.collection('users').doc(docId);
     final docSnapshot = await userDoc.get();
