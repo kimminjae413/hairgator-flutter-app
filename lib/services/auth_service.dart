@@ -65,22 +65,21 @@ class AuthService {
 
       if (isKakaoTalkInstalled) {
         try {
-          print('[KAKAO] 3. 카카오톡 앱으로 로그인 시도...');
+          print('[KAKAO] 6. 카카오톡 앱으로 로그인 시도...');
           token = await kakao.UserApi.instance.loginWithKakaoTalk();
-          print('[KAKAO] 4. 카카오톡 로그인 성공!');
+          print('[KAKAO] 7. 카카오톡 로그인 성공! accessToken: ${token.accessToken.substring(0, 20)}...');
         } catch (talkError) {
           print('[KAKAO] ⚠️ 카카오톡 로그인 실패!');
           print('[KAKAO] 에러 타입: ${talkError.runtimeType}');
           print('[KAKAO] 에러 내용: $talkError');
-          // 웹 로그인으로 폴백
-          print('[KAKAO] 3. 웹 로그인으로 폴백...');
-          token = await kakao.UserApi.instance.loginWithKakaoAccount();
-          print('[KAKAO] 4. 카카오 계정 로그인 성공!');
+          lastKakaoError = '카카오톡 앱 로그인 실패: $talkError';
+          // 웹 로그인으로 폴백하지 않고 에러 반환
+          return null;
         }
       } else {
-        print('[KAKAO] 3. 카카오톡 미설치 → 웹 로그인');
+        print('[KAKAO] 6. 카카오톡 미설치 → 웹 로그인');
         token = await kakao.UserApi.instance.loginWithKakaoAccount();
-        print('[KAKAO] 4. 카카오 계정 로그인 성공!');
+        print('[KAKAO] 7. 카카오 계정 로그인 성공!');
       }
 
       // 카카오 사용자 정보 가져오기

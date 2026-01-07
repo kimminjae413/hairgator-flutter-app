@@ -16,7 +16,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _isLoginMode = true;
-  String _kakaoDebugInfo = 'v43: 확인 중...';
+  String _kakaoDebugInfo = 'v45: 확인 중...';
+  String? _lastError;
 
   @override
   void initState() {
@@ -61,7 +62,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _signInWithKakao() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _lastError = null;
+    });
 
     final result = await _authService.signInWithKakao();
 
@@ -72,6 +76,9 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {
       // 상세 에러 메시지 표시 (디버깅용)
       final errorMsg = _authService.lastKakaoError ?? '카카오 로그인에 실패했습니다.';
+      setState(() {
+        _lastError = errorMsg;
+      });
       _showError(errorMsg);
     }
   }
@@ -203,6 +210,26 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
+                          // 에러 메시지 표시
+                          if (_lastError != null) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.red),
+                              ),
+                              child: Text(
+                                _lastError!,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.red,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
