@@ -49,37 +49,36 @@ class AuthService {
   Future<UserCredential?> signInWithKakao() async {
     lastKakaoError = null;
     try {
-      print('[KAKAO] ========== v43 카카오 로그인 시작 ==========');
-      print('[KAKAO] 1. 시작 시각: ${DateTime.now()}');
+      print('[KAKAO] ========== v56 카카오 로그인 시작 ==========');
 
-      kakao.OAuthToken token;
+      kakao.OAuthToken? token;
 
-      // 카카오톡 설치 여부 먼저 확인
-      print('[KAKAO] 2. isKakaoTalkInstalled() 호출...');
-      final isKakaoTalkInstalled = await kakao.isKakaoTalkInstalled();
-      print('[KAKAO] 3. 카카오톡 설치됨: $isKakaoTalkInstalled');
+      // 1. 카카오톡 앱 로그인 먼저 시도
+      try {
+        final isKakaoTalkInstalled = await kakao.isKakaoTalkInstalled();
+        print('[KAKAO] 카카오톡 설치: $isKakaoTalkInstalled');
 
-      // 추가 정보 출력
-      print('[KAKAO] 4. 플랫폼 정보: iOS');
-      print('[KAKAO] 5. SDK 초기화 상태: main()에서 완료');
-
-      if (isKakaoTalkInstalled) {
-        try {
-          print('[KAKAO] 6. 카카오톡 앱으로 로그인 시도...');
+        if (isKakaoTalkInstalled) {
+          print('[KAKAO] 카카오톡 앱 로그인 시도...');
           token = await kakao.UserApi.instance.loginWithKakaoTalk();
-          print('[KAKAO] 7. 카카오톡 로그인 성공! accessToken: ${token.accessToken.substring(0, 20)}...');
-        } catch (talkError) {
-          print('[KAKAO] ⚠️ 카카오톡 로그인 실패!');
-          print('[KAKAO] 에러 타입: ${talkError.runtimeType}');
-          print('[KAKAO] 에러 내용: $talkError');
-          lastKakaoError = '카카오톡 앱 로그인 실패: $talkError';
-          // 웹 로그인으로 폴백하지 않고 에러 반환
+          print('[KAKAO] 카카오톡 앱 로그인 성공!');
+        }
+      } catch (e) {
+        print('[KAKAO] 카카오톡 앱 로그인 실패: $e');
+        token = null; // 폴백을 위해 null로 설정
+      }
+
+      // 2. 앱 로그인 실패 시 웹 로그인으로 폴백
+      if (token == null) {
+        print('[KAKAO] 웹 로그인으로 폴백...');
+        try {
+          token = await kakao.UserApi.instance.loginWithKakaoAccount();
+          print('[KAKAO] 웹 로그인 성공!');
+        } catch (e) {
+          print('[KAKAO] 웹 로그인도 실패: $e');
+          lastKakaoError = '카카오 로그인 실패';
           return null;
         }
-      } else {
-        print('[KAKAO] 6. 카카오톡 미설치 → 웹 로그인');
-        token = await kakao.UserApi.instance.loginWithKakaoAccount();
-        print('[KAKAO] 7. 카카오 계정 로그인 성공!');
       }
 
       // 카카오 사용자 정보 가져오기
