@@ -7,7 +7,14 @@ import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 
 void main() {
-  // 먼저 앱 실행 (초기화는 앱 내에서)
+  // 1. Flutter 바인딩 초기화 (필수)
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 2. 카카오 SDK 초기화 - 반드시 runApp() 전에!
+  // 이게 없으면 isKakaoTalkInstalled()가 항상 false 반환
+  kakao.KakaoSdk.init(nativeAppKey: '0f63cd86d49dd376689358cac993a842');
+
+  // 3. 앱 실행 (Firebase는 앱 내에서 async 초기화)
   runApp(const HairgatorApp());
 }
 
@@ -31,25 +38,19 @@ class _HairgatorAppState extends State<HairgatorApp> {
 
   Future<void> _initializeApp() async {
     try {
-      setState(() => _status = 'v40: WidgetsBinding...');
-      WidgetsFlutterBinding.ensureInitialized();
-
-      // 카카오 SDK 초기화
-      setState(() => _status = 'v40: Kakao SDK...');
-      kakao.KakaoSdk.init(nativeAppKey: '0f63cd86d49dd376689358cac993a842');
-
-      setState(() => _status = 'v40: Firebase init...');
+      // 카카오 SDK는 main()에서 이미 초기화됨 (runApp 전에 필수!)
+      setState(() => _status = 'v41: Firebase init...');
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
 
       setState(() {
-        _status = 'v40: Ready!';
+        _status = 'v41: Ready!';
         _initialized = true;
       });
     } catch (e) {
       setState(() {
-        _status = 'v40: ERROR';
+        _status = 'v41: ERROR';
         _error = e.toString();
       });
     }
