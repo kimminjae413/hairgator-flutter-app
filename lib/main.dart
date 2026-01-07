@@ -19,7 +19,7 @@ class HairgatorApp extends StatefulWidget {
 }
 
 class _HairgatorAppState extends State<HairgatorApp> {
-  String _status = 'v38: Starting...';
+  String _status = 'v39: Starting...';
   bool _initialized = false;
   String? _error;
 
@@ -31,25 +31,25 @@ class _HairgatorAppState extends State<HairgatorApp> {
 
   Future<void> _initializeApp() async {
     try {
-      setState(() => _status = 'v38: WidgetsBinding...');
+      setState(() => _status = 'v39: WidgetsBinding...');
       WidgetsFlutterBinding.ensureInitialized();
 
       // 카카오 SDK 초기화
-      setState(() => _status = 'v38: Kakao SDK...');
+      setState(() => _status = 'v39: Kakao SDK...');
       kakao.KakaoSdk.init(nativeAppKey: '0f63cd86d49dd376689358cac993a842');
 
-      setState(() => _status = 'v38: Firebase init...');
+      setState(() => _status = 'v39: Firebase init...');
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
 
       setState(() {
-        _status = 'v38: Ready!';
+        _status = 'v39: Ready!';
         _initialized = true;
       });
     } catch (e) {
       setState(() {
-        _status = 'v38: ERROR';
+        _status = 'v39: ERROR';
         _error = e.toString();
       });
     }

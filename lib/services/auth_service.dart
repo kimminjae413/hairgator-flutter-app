@@ -58,12 +58,19 @@ class AuthService {
 
       if (isInstalled) {
         // 카카오톡으로 로그인 (앱투앱)
-        print('[KAKAO] 3. 카카오톡 앱으로 로그인 시도...');
-        token = await kakao.UserApi.instance.loginWithKakaoTalk();
-        print('[KAKAO] 4. 카카오톡 로그인 성공: ${token.accessToken.substring(0, 20)}...');
+        try {
+          print('[KAKAO] 3. 카카오톡 앱으로 로그인 시도...');
+          token = await kakao.UserApi.instance.loginWithKakaoTalk();
+          print('[KAKAO] 4. 카카오톡 로그인 성공: ${token.accessToken.substring(0, 20)}...');
+        } catch (talkError) {
+          // 카카오톡 로그인 실패 시 웹 로그인으로 폴백
+          print('[KAKAO] 카카오톡 로그인 실패, 웹으로 폴백: $talkError');
+          token = await kakao.UserApi.instance.loginWithKakaoAccount();
+          print('[KAKAO] 4. 카카오 계정 로그인 성공: ${token.accessToken.substring(0, 20)}...');
+        }
       } else {
         // 카카오 계정으로 로그인 (웹뷰)
-        print('[KAKAO] 3. 카카오 계정으로 로그인 시도...');
+        print('[KAKAO] 3. 카카오톡 미설치, 카카오 계정으로 로그인 시도...');
         token = await kakao.UserApi.instance.loginWithKakaoAccount();
         print('[KAKAO] 4. 카카오 계정 로그인 성공: ${token.accessToken.substring(0, 20)}...');
       }
