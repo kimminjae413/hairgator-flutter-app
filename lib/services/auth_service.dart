@@ -49,34 +49,42 @@ class AuthService {
   Future<UserCredential?> signInWithKakao() async {
     lastKakaoError = null;
     try {
-      print('[KAKAO] ========== v56 카카오 로그인 시작 ==========');
+      print('[KAKAO] ========== v59 카카오 로그인 시작 ==========');
 
       kakao.OAuthToken? token;
 
       // 1. 카카오톡 앱 로그인 먼저 시도
       try {
         final isKakaoTalkInstalled = await kakao.isKakaoTalkInstalled();
-        print('[KAKAO] 카카오톡 설치: $isKakaoTalkInstalled');
+        print('[KAKAO] 카카오톡 설치 여부: $isKakaoTalkInstalled');
 
         if (isKakaoTalkInstalled) {
-          print('[KAKAO] 카카오톡 앱 로그인 시도...');
+          print('[KAKAO] 카카오톡 앱 로그인 시도 중...');
           token = await kakao.UserApi.instance.loginWithKakaoTalk();
-          print('[KAKAO] 카카오톡 앱 로그인 성공!');
+          print('[KAKAO] ✅ 카카오톡 앱 로그인 성공! accessToken: ${token.accessToken.substring(0, 10)}...');
+        } else {
+          print('[KAKAO] ⚠️ 카카오톡 미설치 - 웹 로그인 필요');
         }
-      } catch (e) {
-        print('[KAKAO] 카카오톡 앱 로그인 실패: $e');
-        token = null; // 폴백을 위해 null로 설정
+      } catch (e, stackTrace) {
+        print('[KAKAO] ❌ 카카오톡 앱 로그인 실패');
+        print('[KAKAO] 에러 타입: ${e.runtimeType}');
+        print('[KAKAO] 에러 메시지: $e');
+        print('[KAKAO] 스택: $stackTrace');
+        token = null;
       }
 
       // 2. 앱 로그인 실패 시 웹 로그인으로 폴백
       if (token == null) {
         print('[KAKAO] 웹 로그인으로 폴백...');
         try {
-          token = await kakao.UserApi.instance.loginWithKakaoAccount();
-          print('[KAKAO] 웹 로그인 성공!');
+          token = await kakao.UserApi.instance.loginWithKakaoAccount()
+              .timeout(const Duration(seconds: 120), onTimeout: () {
+            throw Exception('카카오 웹 로그인 타임아웃 (120초)');
+          });
+          print('[KAKAO] 웹 로그인 성공! accessToken: ${token.accessToken.substring(0, 10)}...');
         } catch (e) {
           print('[KAKAO] 웹 로그인도 실패: $e');
-          lastKakaoError = '카카오 로그인 실패';
+          lastKakaoError = '카카오 웹 로그인 실패: $e';
           return null;
         }
       }
