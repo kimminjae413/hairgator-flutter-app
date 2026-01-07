@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/tab_config.dart';
 import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
@@ -29,8 +32,35 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _initWebViewWithAuth();
-    _watchTabs(); // 실시간 구독
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    // 1. 권한 요청 (카메라, 사진)
+    await _requestPermissions();
+
+    // 2. WebView 초기화
+    await _initWebViewWithAuth();
+
+    // 3. 탭 구독
+    _watchTabs();
+  }
+
+  /// 카메라/사진 권한 요청
+  Future<void> _requestPermissions() async {
+    print('[Permission] 권한 요청 시작...');
+
+    // Android 13+ (API 33+) 에서는 READ_MEDIA_IMAGES 사용
+    // 그 이하 버전에서는 storage 권한 사용
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.camera,
+      Permission.photos, // iOS & Android 13+
+      Permission.storage, // Android 12 이하
+    ].request();
+
+    statuses.forEach((permission, status) {
+      print('[Permission] $permission: $status');
+    });
   }
 
   /// Firestore 탭 설정 실시간 구독
@@ -59,7 +89,21 @@ class _HomeScreenState extends State<HomeScreen> {
       print('[WebView] Token 획득 실패: $e');
     }
 
-    _webViewController = WebViewController()
+    // 플랫폼별 WebView 생성 파라미터
+    late final PlatformWebViewControllerCreationParams params;
+
+    if (Platform.isIOS) {
+      // iOS: WKWebView 설정
+      params = WebKitWebViewControllerCreationParams(
+        allowsInlineMediaPlayback: true,
+        mediaTypesRequiringUserAction: const <PlaybackMediaTypes>{},
+      );
+    } else {
+      // Android: 기본 설정
+      params = const PlatformWebViewControllerCreationParams();
+    }
+
+    _webViewController = WebViewController.fromPlatformCreationParams(params)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.black)
       ..addJavaScriptChannel(
@@ -85,13 +129,39 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
 
-    // Android 스크롤 성능 개선
+    // Android 전용 설정
     if (_webViewController.platform is AndroidWebViewController) {
-      final androidController = _webViewController.platform as AndroidWebViewController;
+      final androidController =
+          _webViewController.platform as AndroidWebViewController;
+
+      // 미디어 자동 재생 허용
       androidController.setMediaPlaybackRequiresUserGesture(false);
+
+      // 카메라/마이크 권한 요청 처리 (getUserMedia)
+      androidController.setOnPlatformPermissionRequest((request) {
+        print('[WebView] 웹 권한 요청: ${request.types}');
+        request.grant(); // 모든 권한 허용
+      });
+
+      // WebGL/DOM Storage 등 고급 기능 활성화
+      // setGeolocationEnabled, setDomStorageEnabled 등은 기본값으로 활성화됨
+
+      print('[WebView] Android WebView 설정 완료');
     }
 
-    _webViewController.loadRequest(Uri.parse(_getUrlWithToken('https://app.hairgator.kr')));
+    // iOS 전용 설정
+    if (_webViewController.platform is WebKitWebViewController) {
+      final iosController =
+          _webViewController.platform as WebKitWebViewController;
+
+      // iOS에서 미디어 캡처 허용
+      iosController.setAllowsBackForwardNavigationGestures(true);
+
+      print('[WebView] iOS WebView 설정 완료');
+    }
+
+    _webViewController
+        .loadRequest(Uri.parse(_getUrlWithToken('https://app.hairgator.kr')));
   }
 
   String _getUrlWithToken(String baseUrl) {
@@ -139,6 +209,9 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _isFullscreen = true;
       });
+    } else if (message == 'requestCameraPermission') {
+      // 웹에서 카메라 권한 요청 시
+      _requestPermissions();
     }
   }
 
@@ -204,7 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // meta 기반으로 해시 결정
     switch (tab.meta) {
       case 'styleMenuTab':
-        return '';  // 메인 화면 (홈)
+        return ''; // 메인 화면 (홈)
       case 'pkg_iamportPayment_productMulti':
         return 'products';
       case 'myPage':
