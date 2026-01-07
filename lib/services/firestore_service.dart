@@ -17,14 +17,19 @@ class FirestoreService {
       }
 
       final data = snapshot.data()!;
-      print('[FirestoreService] 탭 데이터 실시간 업데이트: ${data.keys.toList()}');
+      print('[FirestoreService] 탭 데이터 실시간 업데이트');
+
+      // tabOrder 배열 확인 (Admin에서 드래그로 정렬한 순서)
+      final tabOrder = (data['tabOrder'] as List<dynamic>?)?.cast<int>() ?? [1, 2, 3, 4];
+      print('[FirestoreService] 탭 순서: $tabOrder');
 
       final List<TabConfig> tabs = [];
 
-      for (int i = 1; i <= 4; i++) {
-        final tabData = data['tab$i'] as Map<String, dynamic>?;
+      // tabOrder 순서대로 탭 로드
+      for (final tabId in tabOrder) {
+        final tabData = data['tab$tabId'] as Map<String, dynamic>?;
         if (tabData != null) {
-          print('[FirestoreService] tab$i: label=${tabData['label']}, enabled=${tabData['enabled']}');
+          print('[FirestoreService] tab$tabId: label=${tabData['label']}, enabled=${tabData['enabled']}');
           final tab = TabConfig.fromFirestore(tabData);
           if (tab.enabled) {
             tabs.add(tab);
@@ -32,7 +37,6 @@ class FirestoreService {
         }
       }
 
-      tabs.sort((a, b) => a.order.compareTo(b.order));
       print('[FirestoreService] 실시간 탭 수: ${tabs.length}');
       return tabs;
     });
