@@ -3,6 +3,8 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/tab_config.dart';
 import '../services/firestore_service.dart';
+import '../services/auth_service.dart';
+import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -112,7 +114,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _handleJavaScriptMessage(String message) {
     print('[Flutter] JS 메시지 수신: $message');
 
-    if (message == 'toggleFullscreen') {
+    if (message == 'logout') {
+      _handleLogout();
+    } else if (message == 'toggleFullscreen') {
       setState(() {
         _isFullscreen = !_isFullscreen;
       });
@@ -125,6 +129,25 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _isFullscreen = true;
       });
+    }
+  }
+
+  /// 로그아웃 처리 - 네이티브 로그인 화면으로 이동
+  Future<void> _handleLogout() async {
+    print('[Flutter] 웹에서 로그아웃 요청 수신');
+
+    try {
+      final authService = AuthService();
+      await authService.signOut();
+
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false, // 모든 이전 화면 제거
+        );
+      }
+    } catch (e) {
+      print('[Flutter] 로그아웃 에러: $e');
     }
   }
 
