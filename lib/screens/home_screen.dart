@@ -17,6 +17,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<TabConfig> _tabs = [];
   int _currentIndex = 0;
   bool _isLoading = true;
+  bool _isFullscreen = false; // 풀스크린 모드 (탭바 숨김)
   late WebViewController _webViewController;
   String? _idToken;
 
@@ -56,6 +57,12 @@ class _HomeScreenState extends State<HomeScreen> {
     _webViewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.black)
+      ..addJavaScriptChannel(
+        'FlutterChannel',
+        onMessageReceived: (JavaScriptMessage message) {
+          _handleJavaScriptMessage(message.message);
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) {
@@ -100,8 +107,32 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// 웹에서 보낸 메시지 처리
+  void _handleJavaScriptMessage(String message) {
+    print('[Flutter] JS 메시지 수신: $message');
+
+    if (message == 'toggleFullscreen') {
+      setState(() {
+        _isFullscreen = !_isFullscreen;
+      });
+      print('[Flutter] 풀스크린 모드: $_isFullscreen');
+    } else if (message == 'showTabs') {
+      setState(() {
+        _isFullscreen = false;
+      });
+    } else if (message == 'hideTabs') {
+      setState(() {
+        _isFullscreen = true;
+      });
+    }
+  }
+
   void _onTabTapped(int index) {
-    setState(() => _currentIndex = index);
+    setState(() {
+      _currentIndex = index;
+      // 다른 탭으로 이동하면 풀스크린 해제
+      _isFullscreen = false;
+    });
 
     final tab = _tabs[index];
     final hashRoute = _getHashRoute(tab);
@@ -154,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _tabs.isEmpty
+      bottomNavigationBar: (_tabs.isEmpty || _isFullscreen)
           ? null
           : BottomNavigationBar(
               currentIndex: _currentIndex,
