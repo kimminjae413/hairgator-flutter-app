@@ -98,18 +98,35 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _currentIndex = index);
 
     final tab = _tabs[index];
-    String url = tab.url ?? 'https://app.hairgator.kr';
+    final hashRoute = _getHashRoute(tab);
 
-    // URL에 userId 파라미터가 있으면 실제 userId로 대체
-    final user = _auth.currentUser;
-    if (user != null) {
-      url = url.replaceAll('\${userInfo._id.oid}', user.uid);
-    } else {
-      url = url.replaceAll('\${userInfo._id.oid}', 'guest');
+    print('[HomeScreen] 탭 $index (${tab.menuName}) → #$hashRoute');
+
+    // SPA 라우터 방식: JavaScript로 해시만 변경 (페이지 새로고침 없음)
+    _webViewController.runJavaScript('''
+      window.location.hash = '$hashRoute';
+      console.log('[Flutter] 탭 네비게이션: #$hashRoute');
+    ''');
+  }
+
+  /// 탭의 해시 라우트 결정 (meta 기반)
+  String _getHashRoute(TabConfig tab) {
+    // URL에 해시가 있으면 추출
+    if (tab.url != null && tab.url!.contains('#')) {
+      return tab.url!.split('#').last;
     }
 
-    // 토큰 포함하여 로드
-    _webViewController.loadRequest(Uri.parse(_getUrlWithToken(url)));
+    // meta 기반으로 해시 결정
+    switch (tab.meta) {
+      case 'styleMenuTab':
+        return '';  // 메인 화면 (홈)
+      case 'pkg_iamportPayment_productMulti':
+        return 'products';
+      case 'myPage':
+        return 'mypage';
+      default:
+        return '';
+    }
   }
 
   @override
