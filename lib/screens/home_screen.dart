@@ -40,6 +40,10 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<String> _consoleLogs = [];
   final int _maxLogs = 100; // 최대 로그 개수
 
+  // login.html 리다이렉트 감지 (무한 루프 방지)
+  int _loginRedirectCount = 0;
+  static const int _maxLoginRedirects = 2;
+
   @override
   void initState() {
     super.initState();
@@ -166,6 +170,28 @@ class _HomeScreenState extends State<HomeScreen> {
             // 페이지 로드 후 토큰으로 자동 로그인 시도
             _injectAuthToken();
             print('[WebView] 페이지 로드 완료: $url');
+
+            // ⚠️ login.html로 리다이렉트된 경우 → 다시 index.html로 로드 (무한 루프 방지)
+            if (url.contains('login.html') || url.endsWith('/login')) {
+              _loginRedirectCount++;
+              print('[WebView] ⚠️ login.html 감지! (${_loginRedirectCount}/$_maxLoginRedirects)');
+              _addConsoleLog('[⚠️ REDIRECT] login.html 감지 #$_loginRedirectCount');
+
+              if (_loginRedirectCount <= _maxLoginRedirects) {
+                // 토큰과 함께 index.html 다시 로드
+                _webViewController.loadRequest(
+                  Uri.parse(_getUrlWithToken('https://app.hairgator.kr'))
+                );
+              } else {
+                // 계속 login.html로 가면 → 네이티브 로그인 화면으로
+                print('[WebView] 🔴 login.html 반복 → 네이티브 로그인으로 이동');
+                _addConsoleLog('[🔴 ERROR] login 반복 → 네이티브 로그인');
+                _handleLogout();
+              }
+            } else {
+              // 정상 페이지면 카운터 리셋
+              _loginRedirectCount = 0;
+            }
           },
           onWebResourceError: (WebResourceError error) {
             print('WebView error: ${error.description}');
@@ -213,11 +239,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _getUrlWithToken(String baseUrl) {
     final separator = baseUrl.contains('?') ? '&' : '?';
-    // Flutter 앱임을 표시 + Firebase 토큰 전달
-    String url = '$baseUrl${separator}isFlutterApp=true';
+    // Flutter 앱임을 표시 + Firebase 토큰 전달 + 캐시 방지 타임스탬프
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    String url = '$baseUrl${separator}isFlutterApp=true&_t=$timestamp';
     if (_idToken != null) {
       url += '&firebaseToken=$_idToken';
     }
+    print('[WebView] 로드 URL: $url');
     return url;
   }
 
