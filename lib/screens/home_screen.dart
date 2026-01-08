@@ -199,11 +199,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _getUrlWithToken(String baseUrl) {
+    final separator = baseUrl.contains('?') ? '&' : '?';
+    // Flutter 앱임을 표시 + Firebase 토큰 전달
+    String url = '$baseUrl${separator}isFlutterApp=true';
     if (_idToken != null) {
-      final separator = baseUrl.contains('?') ? '&' : '?';
-      return '$baseUrl${separator}firebaseToken=$_idToken';
+      url += '&firebaseToken=$_idToken';
     }
-    return baseUrl;
+    return url;
   }
 
   Future<void> _injectAuthToken() async {
