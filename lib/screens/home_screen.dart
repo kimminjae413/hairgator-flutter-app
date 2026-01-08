@@ -35,6 +35,11 @@ class _HomeScreenState extends State<HomeScreen> {
   late WebViewController _webViewController;
   String? _idToken;
 
+  // 디버그 콘솔 로그
+  bool _showDebugConsole = false;
+  final List<String> _consoleLogs = [];
+  final int _maxLogs = 100; // 최대 로그 개수
+
   @override
   void initState() {
     super.initState();
@@ -143,6 +148,12 @@ class _HomeScreenState extends State<HomeScreen> {
           _downloadAndSaveImage(message.message);
         },
       )
+      ..addJavaScriptChannel(
+        'ConsoleLogChannel',
+        onMessageReceived: (JavaScriptMessage message) {
+          _addConsoleLog(message.message);
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) {
@@ -150,6 +161,8 @@ class _HomeScreenState extends State<HomeScreen> {
           },
           onPageFinished: (String url) {
             setState(() => _isLoading = false);
+            // 콘솔 로그 캡처 주입
+            _injectConsoleCapture();
             // 페이지 로드 후 토큰으로 자동 로그인 시도
             _injectAuthToken();
             print('[WebView] 페이지 로드 완료: $url');
@@ -226,9 +239,93 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// 콘솔 로그 캡처 JavaScript 주입
+  Future<void> _injectConsoleCapture() async {
+    try {
+      await _webViewController.runJavaScript('''
+        (function() {
+          if (window.__consoleCapture) return; // 이미 주입됨
+          window.__consoleCapture = true;
+
+          const originalLog = console.log;
+          const originalError = console.error;
+          const originalWarn = console.warn;
+          const originalInfo = console.info;
+
+          function sendToFlutter(type, args) {
+            try {
+              const message = Array.from(args).map(arg => {
+                if (typeof arg === 'object') {
+                  try { return JSON.stringify(arg); }
+                  catch (e) { return String(arg); }
+                }
+                return String(arg);
+              }).join(' ');
+
+              const timestamp = new Date().toLocaleTimeString('ko-KR', {hour12: false});
+              const logEntry = '[' + timestamp + '] [' + type + '] ' + message;
+
+              if (window.ConsoleLogChannel) {
+                window.ConsoleLogChannel.postMessage(logEntry);
+              }
+            } catch (e) {}
+          }
+
+          console.log = function() {
+            sendToFlutter('LOG', arguments);
+            originalLog.apply(console, arguments);
+          };
+
+          console.error = function() {
+            sendToFlutter('ERROR', arguments);
+            originalError.apply(console, arguments);
+          };
+
+          console.warn = function() {
+            sendToFlutter('WARN', arguments);
+            originalWarn.apply(console, arguments);
+          };
+
+          console.info = function() {
+            sendToFlutter('INFO', arguments);
+            originalInfo.apply(console, arguments);
+          };
+
+          // 전역 에러 캡처
+          window.onerror = function(msg, url, line, col, error) {
+            sendToFlutter('UNCAUGHT', ['Error: ' + msg + ' at ' + url + ':' + line + ':' + col]);
+            return false;
+          };
+
+          // Promise rejection 캡처
+          window.onunhandledrejection = function(event) {
+            sendToFlutter('REJECTION', ['Unhandled Promise: ' + event.reason]);
+          };
+
+          console.log('[Flutter Console Capture] ✅ 콘솔 캡처 활성화됨');
+        })();
+      ''');
+      print('[WebView] 콘솔 캡처 주입 완료');
+    } catch (e) {
+      print('[WebView] 콘솔 캡처 주입 실패: $e');
+    }
+  }
+
+  /// 콘솔 로그 추가
+  void _addConsoleLog(String log) {
+    print('[WebConsole] $log');
+    setState(() {
+      _consoleLogs.insert(0, log);
+      if (_consoleLogs.length > _maxLogs) {
+        _consoleLogs.removeLast();
+      }
+    });
+  }
+
   /// 웹에서 보낸 메시지 처리
   void _handleJavaScriptMessage(String message) {
     print('[Flutter] JS 메시지 수신: $message');
+    _addConsoleLog('[Flutter MSG] $message');
 
     if (message == 'logout') {
       _handleLogout();
@@ -248,6 +345,10 @@ class _HomeScreenState extends State<HomeScreen> {
     } else if (message == 'requestCameraPermission') {
       // 웹에서 카메라 권한 요청 시
       _requestPermissions();
+    } else if (message == 'auth_state_null') {
+      // 웹에서 auth state가 null이 됨 → 로그 기록
+      _addConsoleLog('[⚠️ AUTH] 웹에서 auth state null 감지됨!');
+      print('[Flutter] ⚠️ 웹에서 auth state null 감지!');
     }
   }
 
@@ -485,6 +586,116 @@ class _HomeScreenState extends State<HomeScreen> {
               const Center(
                 child: CircularProgressIndicator(
                   color: Color(0xFFE91E63),
+                ),
+              ),
+
+            // 디버그 콘솔 토글 버튼 (좌측 상단)
+            Positioned(
+              top: 10,
+              left: 10,
+              child: GestureDetector(
+                onTap: () => setState(() => _showDebugConsole = !_showDebugConsole),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _showDebugConsole ? Colors.red : Colors.black54,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.bug_report, color: Colors.white, size: 20),
+                ),
+              ),
+            ),
+
+            // 디버그 콘솔 오버레이
+            if (_showDebugConsole)
+              Positioned(
+                top: 50,
+                left: 10,
+                right: 10,
+                bottom: 100,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green, width: 1),
+                  ),
+                  child: Column(
+                    children: [
+                      // 헤더
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: const BoxDecoration(
+                          color: Colors.green,
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(11),
+                            topRight: Radius.circular(11),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.terminal, color: Colors.white, size: 16),
+                            const SizedBox(width: 8),
+                            Text(
+                              'WebView Console (${_consoleLogs.length})',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const Spacer(),
+                            // 로그 지우기 버튼
+                            GestureDetector(
+                              onTap: () => setState(() => _consoleLogs.clear()),
+                              child: const Icon(Icons.delete_outline, color: Colors.white, size: 18),
+                            ),
+                            const SizedBox(width: 12),
+                            // 닫기 버튼
+                            GestureDetector(
+                              onTap: () => setState(() => _showDebugConsole = false),
+                              child: const Icon(Icons.close, color: Colors.white, size: 18),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // 로그 목록
+                      Expanded(
+                        child: _consoleLogs.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  '콘솔 로그가 여기에 표시됩니다',
+                                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                                ),
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.all(8),
+                                itemCount: _consoleLogs.length,
+                                itemBuilder: (context, index) {
+                                  final log = _consoleLogs[index];
+                                  Color textColor = Colors.white;
+                                  if (log.contains('[ERROR]') || log.contains('[UNCAUGHT]')) {
+                                    textColor = Colors.red;
+                                  } else if (log.contains('[WARN]')) {
+                                    textColor = Colors.orange;
+                                  } else if (log.contains('[INFO]')) {
+                                    textColor = Colors.lightBlue;
+                                  }
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 2),
+                                    child: Text(
+                                      log,
+                                      style: TextStyle(
+                                        color: textColor,
+                                        fontSize: 11,
+                                        fontFamily: 'monospace',
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
           ],
