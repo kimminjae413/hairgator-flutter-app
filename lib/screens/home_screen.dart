@@ -596,17 +596,19 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            // WebView with improved touch handling
-            WebViewWidget(
-              controller: _webViewController,
-              gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-                Factory<VerticalDragGestureRecognizer>(
-                  () => VerticalDragGestureRecognizer(),
-                ),
-                Factory<HorizontalDragGestureRecognizer>(
-                  () => HorizontalDragGestureRecognizer(),
-                ),
-              },
+            // WebView - 스크롤 문제 해결을 위한 설정
+            SizedBox.expand(
+              child: WebViewWidget(
+                controller: _webViewController,
+                gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                  Factory<VerticalDragGestureRecognizer>(
+                    () => VerticalDragGestureRecognizer()
+                      ..onStart = (_) {}
+                      ..onUpdate = (_) {}
+                      ..onEnd = (_) {},
+                  ),
+                },
+              ),
             ),
 
             // 로딩 인디케이터
