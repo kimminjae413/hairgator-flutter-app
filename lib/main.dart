@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -144,6 +145,21 @@ class _AuthWrapperState extends State<AuthWrapper> {
   }
 
   Future<void> _validateUser() async {
+    // 첫 실행 체크 - iOS Keychain 잔여 데이터 정리
+    final prefs = await SharedPreferences.getInstance();
+    final isFirstLaunch = prefs.getBool('hasLaunchedBefore') != true;
+
+    if (isFirstLaunch) {
+      print('[AuthWrapper] 첫 실행 감지 → 기존 세션 정리');
+      await FirebaseAuth.instance.signOut();
+      await prefs.setBool('hasLaunchedBefore', true);
+      setState(() {
+        _isValidating = false;
+        _isValidUser = false;
+      });
+      return;
+    }
+
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
