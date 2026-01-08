@@ -51,6 +51,8 @@
 	<string>AI 스타일 매치, 헤어체험, 퍼스널컬러 분석을 위해 카메라 접근이 필요합니다.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>AI 스타일 매치, 헤어체험, 퍼스널컬러 분석을 위해 사진을 선택할 수 있습니다.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>헤어체험 결과를 사진첩에 저장하기 위해 접근 권한이 필요합니다.</string>
 	<key>KAKAO_NATIVE_APP_KEY</key>
 	<string>0f63cd86d49dd376689358cac993a842</string>
 	<key>LSApplicationQueriesSchemes</key>

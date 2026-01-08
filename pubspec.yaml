@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+62
+version: 1.0.0+67
 
 environment:
   sdk: ^3.6.0
@@ -48,6 +48,14 @@ dependencies:
 
   # 권한 관리 (카메라, 사진 등)
   permission_handler: ^11.3.1
+
+  # 이미지/파일 선택 (WebView 파일 업로드용)
+  image_picker: ^1.0.7
+
+  # 이미지 갤러리 저장 (WebView 다운로드용)
+  gal: ^2.3.0
+  dio: ^5.4.0
+  path_provider: ^2.1.2
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

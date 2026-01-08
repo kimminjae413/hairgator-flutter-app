@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +9,10 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:gal/gal.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:dio/dio.dart';
 import '../models/tab_config.dart';
 import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
@@ -112,6 +118,12 @@ class _HomeScreenState extends State<HomeScreen> {
           _handleJavaScriptMessage(message.message);
         },
       )
+      ..addJavaScriptChannel(
+        'DownloadChannel',
+        onMessageReceived: (JavaScriptMessage message) {
+          _downloadAndSaveImage(message.message);
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) {
@@ -143,8 +155,11 @@ class _HomeScreenState extends State<HomeScreen> {
         request.grant(); // 모든 권한 허용
       });
 
-      // WebGL/DOM Storage 등 고급 기능 활성화
-      // setGeolocationEnabled, setDomStorageEnabled 등은 기본값으로 활성화됨
+      // 파일 선택기 처리 (input type="file" - 갤러리 접근)
+      androidController.setOnShowFileSelector((params) async {
+        print('[WebView] 파일 선택기 요청: ${params.acceptTypes}');
+        return await _handleFileSelection(params);
+      });
 
       print('[WebView] Android WebView 설정 완료');
     }
@@ -212,6 +227,144 @@ class _HomeScreenState extends State<HomeScreen> {
     } else if (message == 'requestCameraPermission') {
       // 웹에서 카메라 권한 요청 시
       _requestPermissions();
+    }
+  }
+
+  /// 파일 선택 처리 (갤러리/카메라에서 이미지 선택)
+  Future<List<String>> _handleFileSelection(FileSelectorParams params) async {
+    final ImagePicker picker = ImagePicker();
+
+    try {
+      // 이미지 타입인지 확인
+      final acceptTypes = params.acceptTypes;
+      final isImage = acceptTypes.isEmpty ||
+          acceptTypes.any((type) =>
+              type.contains('image') || type == '*/*' || type == '*');
+
+      if (isImage) {
+        // 선택 방식 다이얼로그 표시
+        final source = await showModalBottomSheet<ImageSource>(
+          context: context,
+          builder: (context) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_library),
+                  title: const Text('갤러리에서 선택'),
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt),
+                  title: const Text('카메라로 촬영'),
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+              ],
+            ),
+          ),
+        );
+
+        if (source == null) {
+          return []; // 사용자가 취소
+        }
+
+        final XFile? image = await picker.pickImage(
+          source: source,
+          maxWidth: 1920,
+          maxHeight: 1920,
+          imageQuality: 85,
+        );
+
+        if (image != null) {
+          final filePath = 'file://${image.path}';
+          print('[WebView] 이미지 선택됨: $filePath');
+          return [filePath];
+        }
+      }
+
+      return [];
+    } catch (e) {
+      print('[WebView] 파일 선택 에러: $e');
+      return [];
+    }
+  }
+
+  /// 이미지 다운로드 및 갤러리 저장
+  Future<void> _downloadAndSaveImage(String imageUrl) async {
+    print('[Flutter] 이미지 다운로드 요청: ${imageUrl.substring(0, imageUrl.length > 100 ? 100 : imageUrl.length)}...');
+
+    try {
+      // 로딩 표시
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('이미지 저장 중...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      Uint8List imageBytes;
+
+      // base64 데이터 URL인 경우
+      if (imageUrl.startsWith('data:image')) {
+        print('[Flutter] Base64 이미지 감지');
+        // data:image/jpeg;base64,/9j/4AAQ... 형식에서 base64 부분 추출
+        final base64Data = imageUrl.split(',').last;
+        imageBytes = base64Decode(base64Data);
+      } else {
+        // HTTP URL인 경우 다운로드
+        print('[Flutter] HTTP URL 다운로드');
+        final dio = Dio();
+        final response = await dio.get(
+          imageUrl,
+          options: Options(responseType: ResponseType.bytes),
+        );
+        imageBytes = Uint8List.fromList(response.data);
+      }
+
+      // 임시 파일로 저장
+      final tempDir = await getTemporaryDirectory();
+      final fileName = 'hairgator_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final filePath = '${tempDir.path}/$fileName';
+      final file = File(filePath);
+      await file.writeAsBytes(imageBytes);
+
+      // 갤러리에 저장 (gal 패키지)
+      await Gal.putImage(filePath, album: 'Hairgator');
+
+      print('[Flutter] 이미지 저장 성공: $filePath');
+
+      // 임시 파일 삭제
+      await file.delete();
+
+      // 결과 알림
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('이미지가 갤러리에 저장되었습니다!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // 웹에 결과 전달
+        _webViewController.runJavaScript('''
+          if (window.onImageSaved) {
+            window.onImageSaved(true);
+          }
+        ''');
+      }
+    } catch (e) {
+      print('[Flutter] 이미지 저장 에러: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('저장 실패: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
