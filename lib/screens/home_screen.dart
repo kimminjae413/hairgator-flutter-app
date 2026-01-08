@@ -92,10 +92,26 @@ class _HomeScreenState extends State<HomeScreen> {
         _idToken = await user.getIdToken(true);
         print('[WebView] Firebase ID Token 획득 (강제 갱신): ${_idToken?.substring(0, 20)}...');
       } else {
-        print('[WebView] 로그인된 사용자 없음');
+        print('[WebView] 로그인된 사용자 없음 → 로그인 화면으로 이동');
+        // 로그인 화면으로 돌아가기
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (route) => false,
+          );
+        }
+        return;
       }
     } catch (e) {
-      print('[WebView] Token 획득 실패: $e');
+      print('[WebView] Token 획득 실패: $e → 로그인 화면으로 이동');
+      // 토큰 획득 실패 시 로그인 화면으로
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+      return;
     }
 
     // 플랫폼별 WebView 생성 파라미터
