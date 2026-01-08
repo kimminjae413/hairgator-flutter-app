@@ -126,27 +126,85 @@ class _HairgatorAppState extends State<HairgatorApp> {
 }
 
 // 로그인 상태에 따라 화면 분기
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
   @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _isValidating = true;
+  bool _isValidUser = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _validateUser();
+  }
+
+  Future<void> _validateUser() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      print('[AuthWrapper] 로그인된 사용자 없음 → LoginScreen');
+      setState(() {
+        _isValidating = false;
+        _isValidUser = false;
+      });
+      return;
+    }
+
+    print('[AuthWrapper] 사용자 발견: ${user.uid}, 토큰 검증 중...');
+
+    try {
+      // 토큰을 강제로 갱신해서 유효한지 확인
+      final token = await user.getIdToken(true);
+      if (token != null && token.isNotEmpty) {
+        print('[AuthWrapper] 토큰 유효함 → HomeScreen');
+        setState(() {
+          _isValidating = false;
+          _isValidUser = true;
+        });
+      } else {
+        throw Exception('토큰이 비어있음');
+      }
+    } catch (e) {
+      print('[AuthWrapper] 토큰 검증 실패: $e → 로그아웃 후 LoginScreen');
+      // 토큰이 유효하지 않으면 로그아웃
+      await FirebaseAuth.instance.signOut();
+      setState(() {
+        _isValidating = false;
+        _isValidUser = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: Colors.black,
-            body: Center(
-              child: CircularProgressIndicator(color: Color(0xFFE91E63)),
-            ),
-          );
-        }
-        if (snapshot.hasData) {
-          return const HomeScreen();
-        }
-        return const LoginScreen();
-      },
-    );
+    if (_isValidating) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Color(0xFFE91E63)),
+              SizedBox(height: 16),
+              Text(
+                '로그인 상태 확인 중...',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_isValidUser) {
+      return const HomeScreen();
+    }
+
+    return const LoginScreen();
   }
 }
