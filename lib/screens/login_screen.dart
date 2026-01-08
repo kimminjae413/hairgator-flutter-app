@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
 import 'home_screen.dart';
 
@@ -16,6 +17,12 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _isLoginMode = true;
 
+  // 약관 동의 상태
+  bool _agreeService = false;
+  bool _agreePrivacy = false;
+  bool _agreeLocation = false;
+  bool _agreeMarketing = false;
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -23,32 +30,381 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _signInWithGoogle() async {
+  // 약관 동의 모달 표시 후 로그인 진행
+  Future<void> _showTermsAndLogin(String provider) async {
+    // 약관 동의 상태 초기화
+    setState(() {
+      _agreeService = false;
+      _agreePrivacy = false;
+      _agreeLocation = false;
+      _agreeMarketing = false;
+    });
+
+    final agreed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _buildTermsModal(provider),
+    );
+
+    if (agreed == true) {
+      // 약관 동의 완료 후 실제 로그인 진행
+      if (provider == 'google') {
+        await _performGoogleLogin();
+      } else if (provider == 'kakao') {
+        await _performKakaoLogin();
+      }
+    }
+  }
+
+  Widget _buildTermsModal(String provider) {
+    return StatefulBuilder(
+      builder: (context, setModalState) {
+        final allChecked = _agreeService && _agreePrivacy && _agreeLocation && _agreeMarketing;
+        final requiredChecked = _agreeService && _agreePrivacy && _agreeLocation;
+
+        return Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1A1A1A),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 헤더
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '서비스 이용 동의',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    icon: const Icon(Icons.close, color: Colors.grey),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'HAIRGATOR 서비스 이용을 위해 아래 약관에 동의해주세요.',
+                style: TextStyle(color: Colors.grey[400], fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+
+              // 전체 동의
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[900],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: CheckboxListTile(
+                  value: allChecked,
+                  onChanged: (value) {
+                    setModalState(() {
+                      _agreeService = value ?? false;
+                      _agreePrivacy = value ?? false;
+                      _agreeLocation = value ?? false;
+                      _agreeMarketing = value ?? false;
+                    });
+                    setState(() {});
+                  },
+                  title: const Text(
+                    '전체 동의',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  activeColor: const Color(0xFFE91E63),
+                  checkColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 개별 약관
+              _buildTermsItem(
+                '서비스 이용약관 동의',
+                true,
+                _agreeService,
+                (value) {
+                  setModalState(() => _agreeService = value ?? false);
+                  setState(() {});
+                },
+                () => _showTermsDetail('service'),
+              ),
+              _buildTermsItem(
+                '개인정보처리방침 동의',
+                true,
+                _agreePrivacy,
+                (value) {
+                  setModalState(() => _agreePrivacy = value ?? false);
+                  setState(() {});
+                },
+                () => _showTermsDetail('privacy'),
+              ),
+              _buildTermsItem(
+                '위치기반서비스 이용약관 동의',
+                true,
+                _agreeLocation,
+                (value) {
+                  setModalState(() => _agreeLocation = value ?? false);
+                  setState(() {});
+                },
+                () => _showTermsDetail('location'),
+              ),
+              _buildTermsItem(
+                '마케팅 정보 수신 동의',
+                false,
+                _agreeMarketing,
+                (value) {
+                  setModalState(() => _agreeMarketing = value ?? false);
+                  setState(() {});
+                },
+                null,
+              ),
+
+              const SizedBox(height: 24),
+
+              // 동의하고 시작하기 버튼
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: requiredChecked
+                      ? () => Navigator.pop(context, true)
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE91E63),
+                    disabledBackgroundColor: Colors.grey[700],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    '동의하고 시작하기',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTermsItem(
+    String title,
+    bool required,
+    bool value,
+    ValueChanged<bool?> onChanged,
+    VoidCallback? onViewTap,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: Checkbox(
+              value: value,
+              onChanged: onChanged,
+              activeColor: const Color(0xFFE91E63),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => onChanged(!value),
+              child: RichText(
+                text: TextSpan(
+                  style: TextStyle(color: Colors.grey[300], fontSize: 14),
+                  children: [
+                    TextSpan(text: title),
+                    if (required)
+                      const TextSpan(
+                        text: ' (필수)',
+                        style: TextStyle(color: Color(0xFFE91E63)),
+                      )
+                    else
+                      TextSpan(
+                        text: ' (선택)',
+                        style: TextStyle(color: Colors.grey[500]),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (onViewTap != null)
+            TextButton(
+              onPressed: onViewTap,
+              style: TextButton.styleFrom(
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+              child: Text(
+                '보기',
+                style: TextStyle(color: Colors.grey[500], fontSize: 12),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showTermsDetail(String type) {
+    final titles = {
+      'service': '서비스 이용약관',
+      'privacy': '개인정보처리방침',
+      'location': '위치기반서비스 이용약관',
+    };
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.8,
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    titles[type] ?? '약관',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: Colors.grey),
+            Expanded(
+              child: FutureBuilder<DocumentSnapshot>(
+                future: FirebaseFirestore.instance
+                    .collection('terms')
+                    .doc(type == 'service' ? 'terms' : type)
+                    .get(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: Color(0xFFE91E63)),
+                    );
+                  }
+
+                  String content = '약관 내용을 불러오는 중...';
+                  if (snapshot.hasData && snapshot.data!.exists) {
+                    content = snapshot.data!.get('content') ?? content;
+                  }
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      content,
+                      style: TextStyle(color: Colors.grey[300], fontSize: 14, height: 1.6),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _performGoogleLogin() async {
     setState(() => _isLoading = true);
 
     final result = await _authService.signInWithGoogle();
 
-    setState(() => _isLoading = false);
-
     if (result != null && mounted) {
+      // 약관 동의 정보 저장
+      await _saveTermsAgreement(result.user?.uid, result.user?.email);
       _navigateToHome();
     } else {
+      setState(() => _isLoading = false);
       _showError('Google 로그인에 실패했습니다.');
     }
   }
 
-  Future<void> _signInWithKakao() async {
+  Future<void> _performKakaoLogin() async {
     setState(() => _isLoading = true);
 
     final result = await _authService.signInWithKakao();
 
-    setState(() => _isLoading = false);
-
     if (result != null && mounted) {
+      // 약관 동의 정보 저장
+      await _saveTermsAgreement(result.user?.uid, result.user?.email);
       _navigateToHome();
     } else {
+      setState(() => _isLoading = false);
       _showError('카카오 로그인에 실패했습니다.');
     }
+  }
+
+  Future<void> _saveTermsAgreement(String? uid, String? email) async {
+    if (uid == null) return;
+
+    try {
+      // 이메일 기반 문서 ID
+      String docId = uid;
+      if (email != null && email.isNotEmpty) {
+        docId = email.toLowerCase().replaceAll('@', '_').replaceAll('.', '_');
+      }
+
+      await FirebaseFirestore.instance.collection('users').doc(docId).set({
+        'termsAgreement': {
+          'service': _agreeService,
+          'privacy': _agreePrivacy,
+          'location': _agreeLocation,
+          'marketing': _agreeMarketing,
+          'agreedAt': FieldValue.serverTimestamp(),
+        },
+      }, SetOptions(merge: true));
+
+      print('[LoginScreen] 약관 동의 저장 완료: $docId');
+    } catch (e) {
+      print('[LoginScreen] 약관 동의 저장 실패: $e');
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    await _showTermsAndLogin('google');
+  }
+
+  Future<void> _signInWithKakao() async {
+    await _showTermsAndLogin('kakao');
   }
 
   Future<void> _signInWithEmail() async {
@@ -60,17 +416,40 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    // 회원가입 모드일 때만 약관 동의 필요
+    if (!_isLoginMode) {
+      // 약관 동의 상태 초기화
+      setState(() {
+        _agreeService = false;
+        _agreePrivacy = false;
+        _agreeLocation = false;
+        _agreeMarketing = false;
+      });
+
+      final agreed = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => _buildTermsModal('email'),
+      );
+
+      if (agreed != true) return;
+    }
+
     setState(() => _isLoading = true);
 
     final result = _isLoginMode
         ? await _authService.signInWithEmail(email, password)
         : await _authService.signUpWithEmail(email, password);
 
-    setState(() => _isLoading = false);
-
     if (result != null && mounted) {
+      // 회원가입 시 약관 동의 저장
+      if (!_isLoginMode) {
+        await _saveTermsAgreement(result.user?.uid, email);
+      }
       _navigateToHome();
     } else {
+      setState(() => _isLoading = false);
       _showError(_isLoginMode ? '로그인에 실패했습니다.' : '회원가입에 실패했습니다.');
     }
   }
