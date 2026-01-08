@@ -84,12 +84,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _initWebViewWithAuth() async {
-    // Firebase ID Token 가져오기
+    // Firebase ID Token 가져오기 (강제 갱신)
     try {
       final user = _auth.currentUser;
       if (user != null) {
-        _idToken = await user.getIdToken();
-        print('[WebView] Firebase ID Token 획득: ${_idToken?.substring(0, 20)}...');
+        // true = 강제로 새 토큰 발급 (만료된 토큰 방지)
+        _idToken = await user.getIdToken(true);
+        print('[WebView] Firebase ID Token 획득 (강제 갱신): ${_idToken?.substring(0, 20)}...');
+      } else {
+        print('[WebView] 로그인된 사용자 없음');
       }
     } catch (e) {
       print('[WebView] Token 획득 실패: $e');
