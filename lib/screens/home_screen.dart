@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:convert';
@@ -25,7 +26,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final FirestoreService _firestoreService = FirestoreService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   List<TabConfig> _tabs = [];
@@ -34,6 +35,10 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isFullscreen = false; // 풀스크린 모드 (탭바 숨김)
   late WebViewController _webViewController;
   String? _idToken;
+  bool _webViewReady = false; // WebView 초기화 완료 플래그
+
+  // ⭐ iOS 스피너 숨김 타이머
+  Timer? _spinnerHideTimer;
 
   // 디버그 콘솔 로그
   bool _showDebugConsole = false;
@@ -47,7 +52,24 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeApp();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _spinnerHideTimer?.cancel();
+    super.dispose();
+  }
+
+  /// ⭐ 앱 라이프사이클 감지 - iOS bfcache 스피너 문제 해결
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _webViewReady && Platform.isIOS) {
+      print('[HomeScreen] 앱 resumed (iOS) → 스피너 강제 숨김');
+      _injectSpinnerHider();
+    }
   }
 
   Future<void> _initializeApp() async {
@@ -169,6 +191,8 @@ class _HomeScreenState extends State<HomeScreen> {
             _injectConsoleCapture();
             // 페이지 로드 후 토큰으로 자동 로그인 시도
             _injectAuthToken();
+            // ⭐ iOS bfcache 스피너 문제 해결 - 강제 숨김
+            _injectSpinnerHider();
             print('[WebView] 페이지 로드 완료: $url');
 
             // ⚠️ login.html로 리다이렉트된 경우 → 다시 index.html로 로드 (무한 루프 방지)
@@ -235,6 +259,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _webViewController
         .loadRequest(Uri.parse(_getUrlWithToken('https://app.hairgator.kr')));
+
+    // WebView 준비 완료 플래그 설정
+    _webViewReady = true;
+
+    // ⭐ iOS 전용: 주기적 스피너 숨김 타이머 (bfcache 문제 해결)
+    if (Platform.isIOS) {
+      print('[WebView] iOS 감지 → 주기적 스피너 숨김 타이머 시작');
+      _spinnerHideTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+        if (_webViewReady && !_isLoading) {
+          _injectSpinnerHiderSilent();
+        }
+      });
+    }
   }
 
   String _getUrlWithToken(String baseUrl) {
@@ -336,6 +373,89 @@ class _HomeScreenState extends State<HomeScreen> {
       print('[WebView] 콘솔 캡처 주입 완료');
     } catch (e) {
       print('[WebView] 콘솔 캡처 주입 실패: $e');
+    }
+  }
+
+  /// ⭐ iOS 주기적 스피너 숨김 (조용한 버전 - 로그 없음)
+  Future<void> _injectSpinnerHiderSilent() async {
+    try {
+      await _webViewController.runJavaScript('''
+        (function() {
+          var byId = document.getElementById('loadingOverlay');
+          if (byId && (byId.classList.contains('visible') || byId.style.display !== 'none')) {
+            byId.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important;';
+            byId.classList.remove('visible');
+          }
+          document.querySelectorAll('.loading-overlay.visible').forEach(function(el) {
+            el.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important;';
+            el.classList.remove('visible');
+          });
+        })();
+      ''');
+    } catch (e) {
+      // 에러 무시 (조용한 버전)
+    }
+  }
+
+  /// ⭐ iOS bfcache 스피너 강제 숨김 JavaScript 주입
+  Future<void> _injectSpinnerHider() async {
+    try {
+      await _webViewController.runJavaScript('''
+        (function() {
+          // 스피너 강제 숨김 함수
+          function forceHideSpinner() {
+            var found = false;
+
+            // ID로 찾기
+            var byId = document.getElementById('loadingOverlay');
+            if (byId) {
+              byId.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;';
+              byId.classList.remove('visible');
+              byId.classList.add('force-hide');
+              found = true;
+            }
+
+            // 클래스로 찾기
+            var overlays = document.querySelectorAll('.loading-overlay');
+            overlays.forEach(function(el) {
+              el.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;';
+              el.classList.remove('visible');
+              el.classList.add('force-hide');
+              found = true;
+            });
+
+            // 스피너 클래스로 찾기
+            var spinners = document.querySelectorAll('.loading-spinner');
+            spinners.forEach(function(el) {
+              el.style.cssText = 'display: none !important; visibility: hidden !important;';
+              found = true;
+            });
+
+            // visible 클래스가 있는 모든 로딩 요소
+            var visibleLoading = document.querySelectorAll('.loading-overlay.visible, [class*="loading"][class*="visible"]');
+            visibleLoading.forEach(function(el) {
+              el.classList.remove('visible');
+              el.style.display = 'none';
+              found = true;
+            });
+
+            return found;
+          }
+
+          // 즉시 실행 (여러 번)
+          forceHideSpinner();
+          setTimeout(forceHideSpinner, 50);
+          setTimeout(forceHideSpinner, 100);
+          setTimeout(forceHideSpinner, 200);
+          setTimeout(forceHideSpinner, 500);
+          setTimeout(forceHideSpinner, 1000);
+
+          console.log('[Flutter Spinner Hider] ✅ 스피너 강제 숨김 실행됨');
+        })();
+      ''');
+      print('[WebView] 스피너 숨김 주입 완료');
+    } catch (e) {
+      print('[WebView] 스피너 숨김 주입 실패: $e');
     }
   }
 

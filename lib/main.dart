@@ -27,7 +27,7 @@ class HairgatorApp extends StatefulWidget {
 }
 
 class _HairgatorAppState extends State<HairgatorApp> {
-  String _status = 'v40: Starting...';
+  String _status = 'v78: Starting...';
   bool _initialized = false;
   String? _error;
 
@@ -40,18 +40,18 @@ class _HairgatorAppState extends State<HairgatorApp> {
   Future<void> _initializeApp() async {
     try {
       // 카카오 SDK는 main()에서 이미 초기화됨 (runApp 전에 필수!)
-      setState(() => _status = 'v41: Firebase init...');
+      setState(() => _status = 'v78: Firebase init...');
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
 
       setState(() {
-        _status = 'v41: Ready!';
+        _status = 'v78: Ready!';
         _initialized = true;
       });
     } catch (e) {
       setState(() {
-        _status = 'v41: ERROR';
+        _status = 'v78: ERROR';
         _error = e.toString();
       });
     }
