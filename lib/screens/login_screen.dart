@@ -387,7 +387,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _navigateToHome();
     } else {
       setState(() => _isLoading = false);
-      _showError('Apple 로그인에 실패했습니다.');
+      // 실제 에러 메시지 표시
+      final errorMsg = _authService.lastAppleError ?? 'Apple 로그인에 실패했습니다.';
+      _showError(errorMsg);
     }
   }
 
