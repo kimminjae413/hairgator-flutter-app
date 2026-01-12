@@ -80,6 +80,8 @@ class AuthService {
       final rawNonce = _generateNonce();
       final nonce = _sha256ofString(rawNonce);
       print('[APPLE] 1. nonce 생성 완료');
+      print('[APPLE] rawNonce: $rawNonce');
+      print('[APPLE] hashedNonce: $nonce');
 
       // 2. Apple 인증 요청
       print('[APPLE] 2. Apple 인증 요청 중...');
@@ -91,6 +93,9 @@ class AuthService {
         nonce: nonce,
       );
       print('[APPLE] 3. Apple 인증 성공!');
+      print('[APPLE] userIdentifier: ${appleCredential.userIdentifier}');
+      print('[APPLE] email: ${appleCredential.email}');
+      print('[APPLE] authorizationCode: ${appleCredential.authorizationCode.substring(0, 20)}...');
 
       // 3. Apple ID Token 확인
       final identityToken = appleCredential.identityToken;
@@ -99,7 +104,20 @@ class AuthService {
         print('[APPLE] ERROR: $lastAppleError');
         return null;
       }
-      print('[APPLE] 4. identityToken 받음: ${identityToken.substring(0, 20)}...');
+      print('[APPLE] 4. identityToken 받음 (길이: ${identityToken.length})');
+
+      // JWT 토큰 디코딩하여 내용 확인
+      try {
+        final parts = identityToken.split('.');
+        if (parts.length == 3) {
+          final payload = parts[1];
+          final normalized = base64Url.normalize(payload);
+          final decoded = utf8.decode(base64Url.decode(normalized));
+          print('[APPLE] JWT Payload: $decoded');
+        }
+      } catch (e) {
+        print('[APPLE] JWT 디코딩 실패: $e');
+      }
 
       // 4. Firebase OAuthCredential 생성
       final oauthCredential = OAuthProvider("apple.com").credential(
@@ -134,9 +152,22 @@ class AuthService {
       print('[APPLE] 10. 완료!');
 
       return userCredential;
+    } on FirebaseAuthException catch (e) {
+      // Firebase Auth 관련 에러 상세 정보
+      lastAppleError = '[${e.code}] ${e.message}';
+      print('[APPLE] ========== Firebase Auth 에러 ==========');
+      print('[APPLE] code: ${e.code}');
+      print('[APPLE] message: ${e.message}');
+      print('[APPLE] credential: ${e.credential}');
+      print('[APPLE] email: ${e.email}');
+      print('[APPLE] phoneNumber: ${e.phoneNumber}');
+      print('[APPLE] tenantId: ${e.tenantId}');
+      return null;
     } catch (e, stackTrace) {
-      lastAppleError = 'Apple 로그인 에러: $e';
-      print('[APPLE] ERROR: $lastAppleError');
+      lastAppleError = '$e';
+      print('[APPLE] ========== 일반 에러 ==========');
+      print('[APPLE] 에러 타입: ${e.runtimeType}');
+      print('[APPLE] 에러 내용: $e');
       print('[APPLE] StackTrace: $stackTrace');
       return null;
     }
