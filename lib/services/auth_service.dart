@@ -73,6 +73,8 @@ class AuthService {
       return null;
     }
 
+    String? jwtPayload;
+
     try {
       print('[APPLE] ========== Apple 로그인 시작 ==========');
 
@@ -113,6 +115,7 @@ class AuthService {
           final payload = parts[1];
           final normalized = base64Url.normalize(payload);
           final decoded = utf8.decode(base64Url.decode(normalized));
+          jwtPayload = decoded;
           print('[APPLE] JWT Payload: $decoded');
         }
       } catch (e) {
@@ -154,7 +157,7 @@ class AuthService {
       return userCredential;
     } on FirebaseAuthException catch (e) {
       // Firebase Auth 관련 에러 상세 정보
-      lastAppleError = '[${e.code}] ${e.message}';
+      lastAppleError = '[${e.code}] ${e.message}\n\nJWT: $jwtPayload';
       print('[APPLE] ========== Firebase Auth 에러 ==========');
       print('[APPLE] code: ${e.code}');
       print('[APPLE] message: ${e.message}');
@@ -164,7 +167,7 @@ class AuthService {
       print('[APPLE] tenantId: ${e.tenantId}');
       return null;
     } catch (e, stackTrace) {
-      lastAppleError = '$e';
+      lastAppleError = '$e\n\nJWT: $jwtPayload';
       print('[APPLE] ========== 일반 에러 ==========');
       print('[APPLE] 에러 타입: ${e.runtimeType}');
       print('[APPLE] 에러 내용: $e');
