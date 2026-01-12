@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
@@ -53,6 +54,8 @@ class _LoginScreenState extends State<LoginScreen> {
         await _performGoogleLogin();
       } else if (provider == 'kakao') {
         await _performKakaoLogin();
+      } else if (provider == 'apple') {
+        await _performAppleLogin();
       }
     }
   }
@@ -373,6 +376,21 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _performAppleLogin() async {
+    setState(() => _isLoading = true);
+
+    final result = await _authService.signInWithApple();
+
+    if (result != null && mounted) {
+      // 약관 동의 정보 저장
+      await _saveTermsAgreement(result.user?.uid, result.user?.email);
+      _navigateToHome();
+    } else {
+      setState(() => _isLoading = false);
+      _showError('Apple 로그인에 실패했습니다.');
+    }
+  }
+
   Future<void> _saveTermsAgreement(String? uid, String? email) async {
     if (uid == null) return;
 
@@ -405,6 +423,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _signInWithKakao() async {
     await _showTermsAndLogin('kakao');
+  }
+
+  Future<void> _signInWithApple() async {
+    await _showTermsAndLogin('apple');
   }
 
   Future<void> _signInWithEmail() async {
@@ -554,6 +576,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Google 로그인 버튼
                   _buildGoogleButton(),
+
+                  // Apple 로그인 버튼 (iOS만)
+                  if (Platform.isIOS) ...[
+                    const SizedBox(height: 12),
+                    _buildAppleButton(),
+                  ],
 
                   const SizedBox(height: 24),
 
@@ -735,6 +763,34 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _buildAppleButton() {
+    return ElevatedButton(
+      onPressed: _isLoading ? null : _signInWithApple,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.apple, size: 24),
+          const SizedBox(width: 12),
+          const Text(
+            'Apple로 계속하기',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -17,6 +17,7 @@ import 'package:dio/dio.dart';
 import '../models/tab_config.dart';
 import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
+import '../services/iap_service.dart';
 import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -29,6 +30,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final FirestoreService _firestoreService = FirestoreService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final IAPService _iapService = IAPService(); // iOS 인앱결제
   List<TabConfig> _tabs = [];
   int _currentIndex = 0;
   bool _isLoading = true;
@@ -60,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _spinnerHideTimer?.cancel();
+    _iapService.dispose(); // IAP 리소스 해제
     super.dispose();
   }
 
@@ -76,11 +79,164 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // 1. 권한 요청 (카메라, 사진)
     await _requestPermissions();
 
-    // 2. WebView 초기화
+    // 2. iOS 인앱결제 초기화
+    await _initializeIAP();
+
+    // 3. WebView 초기화
     await _initWebViewWithAuth();
 
-    // 3. 탭 구독
+    // 4. 탭 구독
     _watchTabs();
+  }
+
+  /// iOS 인앱결제 초기화
+  Future<void> _initializeIAP() async {
+    if (!Platform.isIOS) {
+      print('[IAP] iOS가 아니므로 인앱결제 스킵');
+      return;
+    }
+
+    // 현재 사용자 ID 설정 (서버 영수증 검증에 사용)
+    final user = _auth.currentUser;
+    if (user != null) {
+      // 이메일 기반 userId 생성 (Firestore 문서 ID와 동일하게)
+      _iapService.currentUserId = _getFirestoreUserId(user);
+      print('[IAP] 사용자 ID 설정: ${_iapService.currentUserId}');
+    }
+
+    final initialized = await _iapService.initialize();
+    if (initialized) {
+      print('[IAP] 인앱결제 초기화 성공');
+
+      // 구매 성공 콜백
+      _iapService.onPurchaseSuccess = (productId, tokens, receipt) {
+        print('[IAP] 구매 성공! productId: $productId, tokens: $tokens');
+        _onIAPSuccess(productId, tokens, receipt);
+      };
+
+      // 구매 실패 콜백
+      _iapService.onPurchaseError = (error) {
+        print('[IAP] 구매 실패: $error');
+        _onIAPError(error);
+      };
+    } else {
+      print('[IAP] 인앱결제 초기화 실패');
+    }
+  }
+
+  /// IAP 구매 성공 처리 - WebView에 결과 전달
+  void _onIAPSuccess(String productId, int tokens, String? receipt) {
+    if (!mounted) return;
+
+    // WebView에 구매 성공 알림
+    _webViewController.runJavaScript('''
+      console.log('[Flutter IAP] 구매 성공: $productId, $tokens 토큰');
+      if (window.onIAPSuccess) {
+        window.onIAPSuccess('$productId', $tokens);
+      } else {
+        // 토큰 충전 후 페이지 새로고침
+        alert('$tokens 토큰이 충전되었습니다!');
+        location.reload();
+      }
+    ''');
+
+    // 스낵바 알림
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$tokens 토큰이 충전되었습니다!'),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  /// IAP 구매 실패 처리 - WebView에 결과 전달
+  void _onIAPError(String error) {
+    if (!mounted) return;
+
+    // WebView에 구매 실패 알림
+    _webViewController.runJavaScript('''
+      console.log('[Flutter IAP] 구매 실패: $error');
+      if (window.onIAPError) {
+        window.onIAPError('$error');
+      }
+    ''');
+
+    // 스낵바 알림 (취소는 알림 안 함)
+    if (!error.contains('취소')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('결제 실패: $error'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  /// WebView에서 IAP 구매 요청 처리
+  void _handleIAPRequest(String message) {
+    print('[IAP] WebView에서 구매 요청: $message');
+    _addConsoleLog('[IAP 요청] $message');
+
+    if (!Platform.isIOS) {
+      print('[IAP] iOS가 아니므로 IAP 불가');
+      return;
+    }
+
+    try {
+      // 메시지 형식: productId (예: "hairgator_basic")
+      // 또는 JSON 형식: {"action": "purchase", "productId": "hairgator_basic"}
+      String productId = message;
+
+      if (message.startsWith('{')) {
+        // JSON 형식
+        final data = jsonDecode(message);
+        if (data['action'] == 'purchase') {
+          productId = data['productId'];
+        } else if (data['action'] == 'getProducts') {
+          // 상품 목록 요청
+          _sendProductsToWeb();
+          return;
+        }
+      }
+
+      // 구매 시작
+      _iapService.purchase(productId);
+    } catch (e) {
+      print('[IAP] 요청 처리 오류: $e');
+      _onIAPError(e.toString());
+    }
+  }
+
+  /// WebView에 상품 목록 전달
+  void _sendProductsToWeb() {
+    final products = _iapService.products.map((p) => {
+      'id': p.id,
+      'title': p.title,
+      'description': p.description,
+      'price': p.price,
+      'tokens': IAPService.productTokens[p.id] ?? 0,
+    }).toList();
+
+    final productsJson = jsonEncode(products);
+    _webViewController.runJavaScript('''
+      console.log('[Flutter IAP] 상품 목록 수신');
+      if (window.onIAPProducts) {
+        window.onIAPProducts($productsJson);
+      }
+    ''');
+  }
+
+  /// Firebase User에서 Firestore 문서 ID 생성
+  /// 이메일 기반: user@example.com → user_example_com
+  String _getFirestoreUserId(User user) {
+    if (user.email != null && user.email!.isNotEmpty) {
+      // 이메일 기반 ID (@ → _, . → _)
+      return user.email!.replaceAll('@', '_').replaceAll('.', '_');
+    }
+    // 이메일 없으면 UID 사용
+    return user.uid;
   }
 
   /// 카메라/사진 권한 요청
@@ -178,6 +334,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         'ConsoleLogChannel',
         onMessageReceived: (JavaScriptMessage message) {
           _addConsoleLog(message.message);
+        },
+      )
+      ..addJavaScriptChannel(
+        'IAPChannel',
+        onMessageReceived: (JavaScriptMessage message) {
+          _handleIAPRequest(message.message);
         },
       )
       ..setNavigationDelegate(

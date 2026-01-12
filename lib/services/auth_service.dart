@@ -1,9 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
 import 'package:http/http.dart' as http;
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:crypto/crypto.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -38,6 +42,102 @@ class AuthService {
       return userCredential;
     } catch (e) {
       print('Google 로그인 에러: $e');
+      return null;
+    }
+  }
+
+  // Apple 로그인 (iOS 필수)
+  String? lastAppleError;
+
+  // SHA256 해시 생성 (Apple 로그인용 nonce)
+  String _sha256ofString(String input) {
+    final bytes = utf8.encode(input);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
+  // 랜덤 nonce 생성
+  String _generateNonce([int length = 32]) {
+    const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(length, (_) => charset[random.nextInt(charset.length)]).join();
+  }
+
+  Future<UserCredential?> signInWithApple() async {
+    lastAppleError = null;
+
+    // iOS에서만 동작
+    if (!Platform.isIOS) {
+      lastAppleError = 'Apple 로그인은 iOS에서만 지원됩니다.';
+      print('[APPLE] ERROR: $lastAppleError');
+      return null;
+    }
+
+    try {
+      print('[APPLE] ========== Apple 로그인 시작 ==========');
+
+      // 1. nonce 생성
+      final rawNonce = _generateNonce();
+      final nonce = _sha256ofString(rawNonce);
+      print('[APPLE] 1. nonce 생성 완료');
+
+      // 2. Apple 인증 요청
+      print('[APPLE] 2. Apple 인증 요청 중...');
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: nonce,
+      );
+      print('[APPLE] 3. Apple 인증 성공!');
+
+      // 3. Apple ID Token 확인
+      final identityToken = appleCredential.identityToken;
+      if (identityToken == null) {
+        lastAppleError = 'Apple identityToken이 null입니다.';
+        print('[APPLE] ERROR: $lastAppleError');
+        return null;
+      }
+      print('[APPLE] 4. identityToken 받음: ${identityToken.substring(0, 20)}...');
+
+      // 4. Firebase OAuthCredential 생성
+      final oauthCredential = OAuthProvider("apple.com").credential(
+        idToken: identityToken,
+        rawNonce: rawNonce,
+      );
+      print('[APPLE] 5. Firebase OAuthCredential 생성 완료');
+
+      // 5. Firebase 로그인
+      print('[APPLE] 6. Firebase 로그인 시도...');
+      final userCredential = await _auth.signInWithCredential(oauthCredential);
+      print('[APPLE] 7. Firebase 로그인 성공: ${userCredential.user?.uid}');
+
+      // 6. 사용자 이름 업데이트 (Apple은 첫 로그인 시에만 이름 제공)
+      final displayName = appleCredential.givenName != null && appleCredential.familyName != null
+          ? '${appleCredential.familyName}${appleCredential.givenName}'
+          : null;
+
+      if (displayName != null && userCredential.user?.displayName == null) {
+        await userCredential.user?.updateDisplayName(displayName);
+        print('[APPLE] 8. displayName 업데이트: $displayName');
+      }
+
+      // 7. Firestore에 사용자 정보 저장
+      print('[APPLE] 9. Firestore 저장...');
+      await _saveUserToFirestore(
+        userCredential.user,
+        provider: 'apple',
+        displayName: displayName,
+        overrideEmail: appleCredential.email,
+      );
+      print('[APPLE] 10. 완료!');
+
+      return userCredential;
+    } catch (e, stackTrace) {
+      lastAppleError = 'Apple 로그인 에러: $e';
+      print('[APPLE] ERROR: $lastAppleError');
+      print('[APPLE] StackTrace: $stackTrace');
       return null;
     }
   }
