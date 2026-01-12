@@ -122,10 +122,11 @@ class AuthService {
         print('[APPLE] JWT 디코딩 실패: $e');
       }
 
-      // 4. Firebase OAuthCredential 생성
+      // 4. Firebase OAuthCredential 생성 (accessToken에 authorizationCode 필수!)
       final oauthCredential = OAuthProvider("apple.com").credential(
         idToken: identityToken,
         rawNonce: rawNonce,
+        accessToken: appleCredential.authorizationCode,
       );
       print('[APPLE] 5. Firebase OAuthCredential 생성 완료');
 
