@@ -155,8 +155,13 @@ class IAPService {
           break;
 
         case PurchaseStatus.purchased:
-        case PurchaseStatus.restored:
           _handleSuccessfulPurchase(purchase);
+          break;
+
+        case PurchaseStatus.restored:
+          // Consumable products should not be restored
+          print('[IAP] Ignoring restore: ${purchase.productID}');
+          _completePurchase(purchase);
           break;
 
         case PurchaseStatus.error:
