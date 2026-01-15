@@ -919,6 +919,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Factory<HorizontalDragGestureRecognizer>(
                   () => HorizontalDragGestureRecognizer(),
                 ),
+                Factory<TapGestureRecognizer>(
+                  () => TapGestureRecognizer(),
+                ),
+                Factory<LongPressGestureRecognizer>(
+                  () => LongPressGestureRecognizer(),
+                ),
               },
             ),
 
