@@ -357,7 +357,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _navigateToHome();
     } else {
       setState(() => _isLoading = false);
-      _showError('Google 로그인에 실패했습니다.');
+      // 실제 에러 메시지 표시
+      final errorMsg = _authService.lastGoogleError ?? 'Google 로그인에 실패했습니다.';
+      _showError(errorMsg);
     }
   }
 

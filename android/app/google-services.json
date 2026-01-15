@@ -7,12 +7,20 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:800038006875:android:54bfacf26a453507e0cf7e",
+        "mobilesdk_app_id": "1:800038006875:android:4b251b5373ace3afe0cf7e",
         "android_client_info": {
           "package_name": "com.hairgator"
         }
       },
       "oauth_client": [
+        {
+          "client_id": "800038006875-r7psnv9e8e1r8brnlk8mqnsbtva1a5hq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.hairgator",
+            "certificate_hash": "ecf0e4724906db83d9cb86e214aab7f70580fb79"
+          }
+        },
         {
           "client_id": "800038006875-u1lotuq74rob8qpvga65mk65cvqnqjip.apps.googleusercontent.com",
           "client_type": 3
@@ -29,6 +37,57 @@
             {
               "client_id": "800038006875-u1lotuq74rob8qpvga65mk65cvqnqjip.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "800038006875-49a9o4l9tpp3llggo0gphi1mmv4m8mkk.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.hairgator"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:800038006875:android:54bfacf26a453507e0cf7e",
+        "android_client_info": {
+          "package_name": "kr.hairgator.hairgator"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "800038006875-g6sk5s8b9rpij4q3j2gdqmiu1hm4aras.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "kr.hairgator.hairgator",
+            "certificate_hash": "ecf0e4724906db83d9cb86e214aab7f70580fb79"
+          }
+        },
+        {
+          "client_id": "800038006875-u1lotuq74rob8qpvga65mk65cvqnqjip.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLGRJ_SDYGMveVjkCciuApiuI5sw98PJ8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "800038006875-u1lotuq74rob8qpvga65mk65cvqnqjip.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "800038006875-49a9o4l9tpp3llggo0gphi1mmv4m8mkk.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.hairgator"
+              }
             }
           ]
         }

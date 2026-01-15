@@ -20,28 +20,53 @@ class AuthService {
   // 로그인 상태 스트림
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
+  // 마지막 Google 로그인 에러 (디버깅용)
+  String? lastGoogleError;
+
   // Google 로그인
   Future<UserCredential?> signInWithGoogle() async {
+    lastGoogleError = null;
     try {
+      print('[GOOGLE] ========== Google 로그인 시작 ==========');
+
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return null;
+      if (googleUser == null) {
+        lastGoogleError = '사용자가 로그인을 취소했습니다.';
+        print('[GOOGLE] ERROR: $lastGoogleError');
+        return null;
+      }
+      print('[GOOGLE] 1. Google 계정 선택 완료: ${googleUser.email}');
 
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
+      print('[GOOGLE] 2. Google Auth 토큰 획득 완료');
 
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
+      print('[GOOGLE] 3. Firebase Credential 생성 완료');
 
       final userCredential = await _auth.signInWithCredential(credential);
+      print('[GOOGLE] 4. Firebase 로그인 성공: ${userCredential.user?.uid}');
 
       // Firestore에 사용자 정보 저장/업데이트
       await _saveUserToFirestore(userCredential.user, provider: 'google');
+      print('[GOOGLE] 5. Firestore 저장 완료');
 
       return userCredential;
-    } catch (e) {
-      print('Google 로그인 에러: $e');
+    } on FirebaseAuthException catch (e) {
+      lastGoogleError = '[${e.code}] ${e.message}';
+      print('[GOOGLE] ========== Firebase Auth 에러 ==========');
+      print('[GOOGLE] code: ${e.code}');
+      print('[GOOGLE] message: ${e.message}');
+      return null;
+    } catch (e, stackTrace) {
+      lastGoogleError = '$e';
+      print('[GOOGLE] ========== 일반 에러 ==========');
+      print('[GOOGLE] 에러 타입: ${e.runtimeType}');
+      print('[GOOGLE] 에러 내용: $e');
+      print('[GOOGLE] StackTrace: $stackTrace');
       return null;
     }
   }

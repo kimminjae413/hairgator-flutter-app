@@ -192,24 +192,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   /// WebView에서 IAP 구매 요청 처리
-  void _handleIAPRequest(String message) async {
+  void _handleIAPRequest(String message) {
     print('[IAP] WebView에서 구매 요청: $message');
     _addConsoleLog('[IAP 요청] $message');
 
     if (!Platform.isIOS) {
       print('[IAP] iOS가 아니므로 IAP 불가');
-      _onIAPError('iOS에서만 인앱결제가 가능합니다.');
       return;
-    }
-
-    // 상품 로드 확인
-    if (_iapService.products.isEmpty) {
-      print('[IAP] 상품이 로드되지 않음 - 다시 로드 시도');
-      await _iapService.loadProducts();
-      if (_iapService.products.isEmpty) {
-        _onIAPError('App Store에서 상품을 불러올 수 없습니다. 나중에 다시 시도해주세요.');
-        return;
-      }
     }
 
     try {
@@ -230,10 +219,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
 
       // 구매 시작
-      final success = await _iapService.purchase(productId);
-      if (!success) {
-        print('[IAP] 구매 요청 실패');
-      }
+      _iapService.purchase(productId);
     } catch (e) {
       print('[IAP] 요청 처리 오류: $e');
       _onIAPError(e.toString());
@@ -913,8 +899,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             WebViewWidget(
               controller: _webViewController,
               gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-                Factory<EagerGestureRecognizer>(
-                  () => EagerGestureRecognizer(),
+                Factory<VerticalDragGestureRecognizer>(
+                  () => VerticalDragGestureRecognizer(),
+                ),
+                Factory<HorizontalDragGestureRecognizer>(
+                  () => HorizontalDragGestureRecognizer(),
                 ),
               },
             ),
