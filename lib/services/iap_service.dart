@@ -36,6 +36,9 @@ class IAPService {
   // 현재 사용자 ID (서버 영수증 검증에 사용)
   String? currentUserId;
 
+  // 이미 처리된 구매 ID (중복 콜백 방지)
+  final Set<String> _processedPurchaseIds = {};
+
   // 상품별 토큰 수
   static const Map<String, int> productTokens = {
     'hairgator_basic': 10000,
@@ -173,6 +176,15 @@ class IAPService {
 
   /// 구매 성공 처리
   Future<void> _handleSuccessfulPurchase(PurchaseDetails purchase) async {
+    // 중복 처리 방지
+    final purchaseId = purchase.purchaseID ?? purchase.productID + DateTime.now().toString();
+    if (_processedPurchaseIds.contains(purchaseId)) {
+      print('[IAP] 이미 처리된 구매, 스킵: $purchaseId');
+      await _completePurchase(purchase);
+      return;
+    }
+    _processedPurchaseIds.add(purchaseId);
+    
     print('[IAP] 구매 성공: ${purchase.productID}');
 
     // 영수증 가져오기
