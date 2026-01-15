@@ -100,7 +100,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final user = _auth.currentUser;
     if (user != null) {
       // 이메일 기반 userId 생성 (Firestore 문서 ID와 동일하게)
-      _iapService.currentUserId = _getFirestoreUserId(user);
+      String? email = user.email;
+      
+      // 카카오 로그인 등 이메일이 없는 경우 token claims에서 가져오기
+      if (email == null || email.isEmpty) {
+        try {
+          final tokenResult = await user.getIdTokenResult();
+          email = tokenResult.claims?['email'] as String?;
+          print('[IAP] token claims에서 이메일 가져옴: $email');
+        } catch (e) {
+          print('[IAP] token claims 조회 실패: $e');
+        }
+      }
+      
+      if (email != null && email.isNotEmpty) {
+        _iapService.currentUserId = email.replaceAll('@', '_').replaceAll('.', '_');
+      } else {
+        _iapService.currentUserId = user.uid;
+      }
       print('[IAP] 사용자 ID 설정: ${_iapService.currentUserId}');
     }
 
