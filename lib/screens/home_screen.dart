@@ -913,17 +913,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             WebViewWidget(
               controller: _webViewController,
               gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-                Factory<VerticalDragGestureRecognizer>(
-                  () => VerticalDragGestureRecognizer(),
-                ),
-                Factory<HorizontalDragGestureRecognizer>(
-                  () => HorizontalDragGestureRecognizer(),
-                ),
-                Factory<TapGestureRecognizer>(
-                  () => TapGestureRecognizer(),
-                ),
-                Factory<LongPressGestureRecognizer>(
-                  () => LongPressGestureRecognizer(),
+                Factory<EagerGestureRecognizer>(
+                  () => EagerGestureRecognizer(),
                 ),
               },
             ),
