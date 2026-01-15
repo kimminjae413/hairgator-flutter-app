@@ -233,13 +233,13 @@ class IAPService {
         return data['success'] == true;
       } else {
         print('[IAP] 서버 검증 실패: ${response.statusCode}');
-        // 서버 오류 시에도 일단 성공으로 처리 (로컬 영수증은 유효)
-        return true;
+        // 서버 검증 실패 시 거부
+        return false;
       }
     } catch (e) {
       print('[IAP] 서버 검증 오류: $e');
-      // 네트워크 오류 시에도 일단 성공으로 처리
-      return true;
+      // 네트워크 오류 시 거부
+      return false;
     }
   }
 
