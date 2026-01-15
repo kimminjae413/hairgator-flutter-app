@@ -189,8 +189,8 @@ class IAPService {
 
     // 영수증 가져오기
     String? receipt;
-    if (purchase.verificationData.serverVerificationData.isNotEmpty) {
-      receipt = purchase.verificationData.serverVerificationData;
+    if (purchase.verificationData.localVerificationData.isNotEmpty) {
+      receipt = purchase.verificationData.localVerificationData;
       print('[IAP] 영수증 데이터 있음 (${receipt.length} bytes)');
     }
 
