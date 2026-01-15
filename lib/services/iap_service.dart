@@ -68,6 +68,10 @@ class IAPService {
 
     print('[IAP] 인앱결제 초기화 시작');
 
+    // 기존 구독이 있으면 먼저 취소 (중복 리스너 방지)
+    await _subscription?.cancel();
+    _subscription = null;
+
     // 구매 스트림 리스너 등록
     _subscription = _iap.purchaseStream.listen(
       _onPurchaseUpdate,
