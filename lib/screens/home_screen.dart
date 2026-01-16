@@ -352,14 +352,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         onMessageReceived: (JavaScriptMessage message) {
           _addConsoleLog(message.message);
         },
-      )
-      ..addJavaScriptChannel(
+      );
+
+    // ⭐ iOS에서만 IAPChannel 등록 (Android에서는 외부결제 사용)
+    if (Platform.isIOS) {
+      _webViewController.addJavaScriptChannel(
         'IAPChannel',
         onMessageReceived: (JavaScriptMessage message) {
           _handleIAPRequest(message.message);
         },
-      )
-      ..setNavigationDelegate(
+      );
+    }
+
+    _webViewController.setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) {
             setState(() => _isLoading = true);
