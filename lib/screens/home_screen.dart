@@ -124,6 +124,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final initialized = await _iapService.initialize();
     if (initialized) {
       print('[IAP] 인앱결제 초기화 성공');
+      print('[IAP] 로드된 상품 수: ${_iapService.products.length}');
+      for (var p in _iapService.products) {
+        print('[IAP] 상품: ${p.id} - ${p.title} - ${p.price}');
+      }
 
       // 구매 성공 콜백
       _iapService.onPurchaseSuccess = (productId, tokens, receipt) {
@@ -144,6 +148,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// IAP 구매 성공 처리 - WebView에 결과 전달
   void _onIAPSuccess(String productId, int tokens, String? receipt) {
     if (!mounted) return;
+
+    // ⭐ 디버그 배너에 성공 표시
+    _sendDebugToWeb('✅ 구매 성공! $productId → $tokens 토큰');
 
     // WebView에 구매 성공 알림
     _webViewController.runJavaScript('''
@@ -171,11 +178,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _onIAPError(String error) {
     if (!mounted) return;
 
+    // ⭐ 디버그 배너에 에러 표시
+    _sendDebugToWeb('❌ 구매 실패: $error');
+
     // WebView에 구매 실패 알림
+    final escapedError = error.replaceAll("'", "\\'");
     _webViewController.runJavaScript('''
-      console.log('[Flutter IAP] 구매 실패: $error');
+      console.log('[Flutter IAP] 구매 실패: $escapedError');
       if (window.onIAPError) {
-        window.onIAPError('$error');
+        window.onIAPError('$escapedError');
       }
     ''');
 
@@ -191,6 +202,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// ⭐ 웹 디버그 배너에 메시지 전송
+  void _sendDebugToWeb(String message) {
+    try {
+      final escaped = message.replaceAll("'", "\\'").replaceAll('\n', '\\n');
+      _webViewController.runJavaScript('''
+        if (typeof showDebugBanner === 'function') {
+          showDebugBanner('$escaped');
+        } else {
+          console.log('[Flutter Debug] $escaped');
+        }
+      ''');
+      print('[Debug→Web] $message');
+    } catch (e) {
+      print('[Debug→Web] 전송 실패: $e');
+    }
+  }
+
   /// WebView에서 IAP 구매 요청 처리
   Future<void> _handleIAPRequest(String message) async {
     print('[IAP] WebView에서 구매 요청: $message');
@@ -198,6 +226,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     if (!Platform.isIOS) {
       print('[IAP] iOS가 아니므로 IAP 불가');
+      _sendDebugToWeb('❌ iOS가 아님 - IAP 불가');
       _onIAPError('iOS에서만 인앱결제가 가능합니다.');
       return;
     }
@@ -210,6 +239,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (message.startsWith('{')) {
         // JSON 형식
         final data = jsonDecode(message);
+        _sendDebugToWeb('🔷 JSON 파싱: action=${data['action']}, productId=${data['productId']}');
         if (data['action'] == 'purchase') {
           productId = data['productId'];
         } else if (data['action'] == 'getProducts') {
@@ -220,22 +250,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
 
       // ⭐ 상품 로드 상태 확인
+      _sendDebugToWeb('🔷 상품 로드 상태: ${_iapService.products.length}개');
       print('[IAP] 로드된 상품 수: ${_iapService.products.length}');
+
       if (_iapService.products.isEmpty) {
+        _sendDebugToWeb('⚠️ 상품 없음 → 다시 로드 시도...');
         print('[IAP] ⚠️ 상품이 로드되지 않음 → 다시 로드 시도');
         await _iapService.loadProducts();
+        _sendDebugToWeb('🔷 재로드 후 상품 수: ${_iapService.products.length}개');
         print('[IAP] 재로드 후 상품 수: ${_iapService.products.length}');
 
         if (_iapService.products.isEmpty) {
+          _sendDebugToWeb('❌ 상품 로드 실패!');
           _onIAPError('상품 정보를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.');
           return;
         }
       }
 
+      // 상품 ID 목록 표시
+      final productIds = _iapService.products.map((p) => p.id).join(', ');
+      _sendDebugToWeb('🔷 로드된 상품: $productIds');
+      _sendDebugToWeb('🔷 구매 시작: $productId');
+
       // 구매 시작 (await 추가!)
       final success = await _iapService.purchase(productId);
+      _sendDebugToWeb('🔷 구매 요청 결과: success=$success');
       print('[IAP] 구매 요청 완료: success=$success');
     } catch (e) {
+      _sendDebugToWeb('❌ IAP 오류: $e');
       print('[IAP] 요청 처리 오류: $e');
       _onIAPError(e.toString());
     }
@@ -377,9 +419,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           // async 콜백으로 에러 처리
           try {
             print('[IAPChannel] 메시지 수신: ${message.message}');
+            // ⭐ 웹에 즉시 피드백
+            _sendDebugToWeb('🔷 Flutter 수신: ${message.message}');
             await _handleIAPRequest(message.message);
           } catch (e) {
             print('[IAPChannel] 처리 오류: $e');
+            _sendDebugToWeb('❌ Flutter 오류: $e');
             _onIAPError(e.toString());
           }
         },
