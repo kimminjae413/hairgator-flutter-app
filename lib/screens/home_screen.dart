@@ -192,12 +192,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   /// WebView에서 IAP 구매 요청 처리
-  void _handleIAPRequest(String message) {
+  Future<void> _handleIAPRequest(String message) async {
     print('[IAP] WebView에서 구매 요청: $message');
     _addConsoleLog('[IAP 요청] $message');
 
     if (!Platform.isIOS) {
       print('[IAP] iOS가 아니므로 IAP 불가');
+      _onIAPError('iOS에서만 인앱결제가 가능합니다.');
       return;
     }
 
@@ -218,8 +219,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       }
 
-      // 구매 시작
-      _iapService.purchase(productId);
+      // ⭐ 상품 로드 상태 확인
+      print('[IAP] 로드된 상품 수: ${_iapService.products.length}');
+      if (_iapService.products.isEmpty) {
+        print('[IAP] ⚠️ 상품이 로드되지 않음 → 다시 로드 시도');
+        await _iapService.loadProducts();
+        print('[IAP] 재로드 후 상품 수: ${_iapService.products.length}');
+
+        if (_iapService.products.isEmpty) {
+          _onIAPError('상품 정보를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.');
+          return;
+        }
+      }
+
+      // 구매 시작 (await 추가!)
+      final success = await _iapService.purchase(productId);
+      print('[IAP] 구매 요청 완료: success=$success');
     } catch (e) {
       print('[IAP] 요청 처리 오류: $e');
       _onIAPError(e.toString());
