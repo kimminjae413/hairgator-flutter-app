@@ -373,8 +373,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (Platform.isIOS) {
       _webViewController.addJavaScriptChannel(
         'IAPChannel',
-        onMessageReceived: (JavaScriptMessage message) {
-          _handleIAPRequest(message.message);
+        onMessageReceived: (JavaScriptMessage message) async {
+          // async 콜백으로 에러 처리
+          try {
+            print('[IAPChannel] 메시지 수신: ${message.message}');
+            await _handleIAPRequest(message.message);
+          } catch (e) {
+            print('[IAPChannel] 처리 오류: $e');
+            _onIAPError(e.toString());
+          }
         },
       );
     }
