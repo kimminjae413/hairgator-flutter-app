@@ -519,6 +519,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       print('[WebView] iOS WebView 설정 완료');
     }
 
+    // ⭐ iPad Desktop Mode 문제 해결: Mobile User-Agent 강제 설정
+    // iPad는 기본적으로 "Macintosh" UA를 보내 Desktop Mode로 동작
+    // 이로 인해 JavaScript Channel 콜백이 작동 안 될 수 있음
+    if (Platform.isIOS) {
+      const mobileUserAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) '
+          'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1 '
+          'HairgatorApp/1.0';
+      _webViewController.setUserAgent(mobileUserAgent);
+      print('[WebView] ⭐ iPad 호환성: Mobile User-Agent 설정됨');
+    }
+
     _webViewController
         .loadRequest(Uri.parse(_getUrlWithToken('https://app.hairgator.kr')));
 
