@@ -411,36 +411,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         },
       );
 
-    // ⭐ iOS에서만 IAPChannel 등록 (Android에서는 외부결제 사용)
-    if (Platform.isIOS) {
-      _webViewController.addJavaScriptChannel(
-        'IAPChannel',
-        onMessageReceived: (JavaScriptMessage message) {
-          // ⚠️ 동기 콜백으로 변경 (async 콜백은 문제 발생 가능)
-          print('[IAPChannel] ========== 메시지 수신 ==========');
-          print('[IAPChannel] 메시지: ${message.message}');
+    // ⭐ IAPChannel 항상 등록 (iPad 호환성 - Platform.isIOS가 iPad에서 문제될 수 있음)
+    // iOS 체크는 콜백 내에서 수행
+    _webViewController.addJavaScriptChannel(
+      'IAPChannel',
+      onMessageReceived: (JavaScriptMessage message) {
+        print('[IAPChannel] ========== 메시지 수신 ==========');
+        print('[IAPChannel] Platform.isIOS: ${Platform.isIOS}');
+        print('[IAPChannel] 메시지: ${message.message}');
 
-          // ⭐ alert으로 확실하게 확인 (디버그용)
-          _webViewController.runJavaScript('''
-            alert('🔷 Flutter에서 메시지 수신!\\n\\n' + '${message.message.replaceAll("'", "\\'")}');
-          ''');
+        // ⭐ alert으로 확실하게 확인 (디버그용)
+        _webViewController.runJavaScript('''
+          alert('🔷 Flutter IAPChannel 콜백 실행!\\n\\nPlatform.isIOS: ${Platform.isIOS}\\n\\n' + '${message.message.replaceAll("'", "\\'")}');
+        ''');
 
-          // ⭐ 웹에 즉시 피드백 (동기)
-          _sendDebugToWeb('🔷 Flutter IAPChannel 수신!');
-          _sendDebugToWeb('🔷 메시지: ${message.message}');
+        // ⭐ 웹에 즉시 피드백
+        _sendDebugToWeb('🔷 Flutter IAPChannel 수신!');
+        _sendDebugToWeb('🔷 Platform.isIOS: ${Platform.isIOS}');
+        _sendDebugToWeb('🔷 메시지: ${message.message}');
 
-          // 비동기 처리는 별도로 (await 없이)
-          _handleIAPRequest(message.message).then((_) {
-            print('[IAPChannel] 처리 완료');
-          }).catchError((e) {
-            print('[IAPChannel] 처리 오류: $e');
-            _sendDebugToWeb('❌ Flutter 오류: $e');
-            _onIAPError(e.toString());
-          });
-        },
-      );
-      print('[IAPChannel] ✅ iOS IAPChannel 등록 완료');
-    }
+        // 비동기 처리는 별도로 (await 없이)
+        _handleIAPRequest(message.message).then((_) {
+          print('[IAPChannel] 처리 완료');
+        }).catchError((e) {
+          print('[IAPChannel] 처리 오류: $e');
+          _sendDebugToWeb('❌ Flutter 오류: $e');
+          _onIAPError(e.toString());
+        });
+      },
+    );
+    print('[IAPChannel] ✅ IAPChannel 등록 완료 (iOS/iPad 공통)');
 
     _webViewController.setNavigationDelegate(
         NavigationDelegate(
