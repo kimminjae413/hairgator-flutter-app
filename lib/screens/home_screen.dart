@@ -415,20 +415,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (Platform.isIOS) {
       _webViewController.addJavaScriptChannel(
         'IAPChannel',
-        onMessageReceived: (JavaScriptMessage message) async {
-          // async 콜백으로 에러 처리
-          try {
-            print('[IAPChannel] 메시지 수신: ${message.message}');
-            // ⭐ 웹에 즉시 피드백
-            _sendDebugToWeb('🔷 Flutter 수신: ${message.message}');
-            await _handleIAPRequest(message.message);
-          } catch (e) {
+        onMessageReceived: (JavaScriptMessage message) {
+          // ⚠️ 동기 콜백으로 변경 (async 콜백은 문제 발생 가능)
+          print('[IAPChannel] ========== 메시지 수신 ==========');
+          print('[IAPChannel] 메시지: ${message.message}');
+
+          // ⭐ alert으로 확실하게 확인 (디버그용)
+          _webViewController.runJavaScript('''
+            alert('🔷 Flutter에서 메시지 수신!\\n\\n' + '${message.message.replaceAll("'", "\\'")}');
+          ''');
+
+          // ⭐ 웹에 즉시 피드백 (동기)
+          _sendDebugToWeb('🔷 Flutter IAPChannel 수신!');
+          _sendDebugToWeb('🔷 메시지: ${message.message}');
+
+          // 비동기 처리는 별도로 (await 없이)
+          _handleIAPRequest(message.message).then((_) {
+            print('[IAPChannel] 처리 완료');
+          }).catchError((e) {
             print('[IAPChannel] 처리 오류: $e');
             _sendDebugToWeb('❌ Flutter 오류: $e');
             _onIAPError(e.toString());
-          }
+          });
         },
       );
+      print('[IAPChannel] ✅ iOS IAPChannel 등록 완료');
     }
 
     _webViewController.setNavigationDelegate(
