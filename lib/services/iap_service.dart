@@ -111,11 +111,6 @@ class IAPService {
 
   /// 구매 요청
   Future<bool> purchase(String productId) async {
-    print('[IAP] ========== purchase() 호출됨 ==========');
-    print('[IAP] productId: $productId');
-    print('[IAP] Platform.isIOS: ${Platform.isIOS}');
-    print('[IAP] products.length: ${products.length}');
-
     if (!Platform.isIOS) {
       print('[IAP] iOS가 아니므로 구매 불가');
       onPurchaseError?.call('iOS에서만 인앱결제가 가능합니다.');
@@ -124,28 +119,23 @@ class IAPService {
 
     try {
       // 상품 찾기
-      print('[IAP] 상품 검색 중: $productId');
       final product = products.firstWhere(
         (p) => p.id == productId,
         orElse: () => throw Exception('상품을 찾을 수 없습니다: $productId'),
       );
 
-      print('[IAP] 상품 찾음: ${product.id} (${product.price})');
-      print('[IAP] 상품 title: ${product.title}');
-      print('[IAP] 상품 description: ${product.description}');
+      print('[IAP] 구매 요청: ${product.id} (${product.price})');
 
       // 구매 파라미터 생성 (소모성 상품)
       final purchaseParam = PurchaseParam(productDetails: product);
-      print('[IAP] PurchaseParam 생성됨');
 
       // 구매 시작
-      print('[IAP] buyConsumable 호출 직전...');
       final success = await _iap.buyConsumable(
         purchaseParam: purchaseParam,
         autoConsume: true,
       );
 
-      print('[IAP] buyConsumable 결과: $success');
+      print('[IAP] 구매 요청 결과: $success');
       return success;
     } catch (e) {
       print('[IAP] 구매 요청 오류: $e');
@@ -156,9 +146,6 @@ class IAPService {
 
   /// 구매 업데이트 처리
   void _onPurchaseUpdate(List<PurchaseDetails> purchases) {
-    print('[IAP] ========== _onPurchaseUpdate 호출됨 ==========');
-    print('[IAP] 구매 개수: ${purchases.length}');
-
     for (final purchase in purchases) {
       print('[IAP] 구매 상태: ${purchase.productID} - ${purchase.status}');
 
