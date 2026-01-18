@@ -158,15 +158,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// IAP 구매 성공 처리 - WebView에 결과 전달
+  /// IAP 구매 성공 처리 - WebView에 결과 전달 (iPad/iPhone 공통)
   void _onIAPSuccess(String productId, int tokens, String? receipt) {
     if (!mounted) return;
 
     // ⭐ 디버그 배너에 성공 표시
     _sendDebugToWeb('✅ 구매 성공! $productId → $tokens 토큰');
 
-    // WebView에 구매 성공 알림
-    _webViewController.runJavaScript('''
+    // WebView에 구매 성공 알림 (iPad/iPhone 공통)
+    _runJavaScript('''
       console.log('[Flutter IAP] 구매 성공: $productId, $tokens 토큰');
       if (window.onIAPSuccess) {
         window.onIAPSuccess('$productId', $tokens);
@@ -187,16 +187,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// IAP 구매 실패 처리 - WebView에 결과 전달
+  /// IAP 구매 실패 처리 - WebView에 결과 전달 (iPad/iPhone 공통)
   void _onIAPError(String error) {
     if (!mounted) return;
 
     // ⭐ 디버그 배너에 에러 표시
     _sendDebugToWeb('❌ 구매 실패: $error');
 
-    // WebView에 구매 실패 알림
+    // WebView에 구매 실패 알림 (iPad/iPhone 공통)
     final escapedError = error.replaceAll("'", "\\'");
-    _webViewController.runJavaScript('''
+    _runJavaScript('''
       console.log('[Flutter IAP] 구매 실패: $escapedError');
       if (window.onIAPError) {
         window.onIAPError('$escapedError');
@@ -215,17 +215,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// ⭐ 웹 디버그 배너에 메시지 전송
+  /// ⭐ iPad/iPhone 공통 JavaScript 실행 헬퍼
+  Future<void> _runJavaScript(String jsCode) async {
+    try {
+      if (_inAppWebViewController != null) {
+        // iPad: InAppWebView 사용
+        await _inAppWebViewController!.evaluateJavascript(source: jsCode);
+      } else {
+        // iPhone/Android: 기존 WebView 사용
+        await _webViewController.runJavaScript(jsCode);
+      }
+    } catch (e) {
+      print('[JS 실행 오류] $e');
+    }
+  }
+
+  /// ⭐ 웹 디버그 배너에 메시지 전송 (iPad/iPhone 공통)
   void _sendDebugToWeb(String message) {
     try {
       final escaped = message.replaceAll("'", "\\'").replaceAll('\n', '\\n');
-      _webViewController.runJavaScript('''
+      final jsCode = '''
         if (typeof showDebugBanner === 'function') {
           showDebugBanner('$escaped');
         } else {
           console.log('[Flutter Debug] $escaped');
         }
-      ''');
+      ''';
+      _runJavaScript(jsCode);
       print('[Debug→Web] $message');
     } catch (e) {
       print('[Debug→Web] 전송 실패: $e');
@@ -296,7 +312,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// WebView에 상품 목록 전달
+  /// WebView에 상품 목록 전달 (iPad/iPhone 공통)
   void _sendProductsToWeb() {
     final products = _iapService.products.map((p) => {
       'id': p.id,
@@ -307,7 +323,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }).toList();
 
     final productsJson = jsonEncode(products);
-    _webViewController.runJavaScript('''
+    _runJavaScript('''
       console.log('[Flutter IAP] 상품 목록 수신');
       if (window.onIAPProducts) {
         window.onIAPProducts($productsJson);
@@ -1090,8 +1106,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             print('[iPad IAPChannel] 메시지 수신: $args');
             if (args.isNotEmpty) {
               final message = args[0].toString();
-              _sendDebugToWebInApp('🔷 iPad InAppWebView IAPChannel 수신!');
-              _sendDebugToWebInApp('🔷 메시지: $message');
+              _sendDebugToWeb('🔷 iPad IAPChannel 수신!');
+              _sendDebugToWeb('🔷 메시지: $message');
 
               // alert 표시 (디버그)
               controller.evaluateJavascript(source: '''
@@ -1101,9 +1117,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               // IAP 요청 처리
               _handleIAPRequest(message).then((_) {
                 print('[iPad IAPChannel] 처리 완료');
+                _sendDebugToWeb('✅ iPad IAP 처리 완료');
               }).catchError((e) {
                 print('[iPad IAPChannel] 오류: $e');
-                _sendDebugToWebInApp('❌ iPad IAP 오류: $e');
+                _sendDebugToWeb('❌ iPad IAP 오류: $e');
               });
             }
             return null;
