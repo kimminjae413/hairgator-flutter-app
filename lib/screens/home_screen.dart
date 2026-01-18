@@ -253,12 +253,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     print('[IAP] WebView에서 구매 요청: $message');
     _addConsoleLog('[IAP 요청] $message');
 
+    // ⭐ 디버그: 스낵바로 단계별 진행 상황 표시
+    void showStep(String step, {Color color = Colors.orange}) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(step), backgroundColor: color, duration: const Duration(seconds: 2)),
+        );
+      }
+      print('[IAP Step] $step');
+    }
+
+    showStep('1️⃣ IAP 요청 시작');
+
     if (!Platform.isIOS) {
       print('[IAP] iOS가 아니므로 IAP 불가');
-      _sendDebugToWeb('❌ iOS가 아님 - IAP 불가');
+      showStep('❌ iOS가 아님', color: Colors.red);
       _onIAPError('iOS에서만 인앱결제가 가능합니다.');
       return;
     }
+
+    showStep('2️⃣ iOS 확인 OK');
 
     try {
       // 메시지 형식: productId (예: "hairgator_basic")
@@ -268,7 +282,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (message.startsWith('{')) {
         // JSON 형식
         final data = jsonDecode(message);
-        _sendDebugToWeb('🔷 JSON 파싱: action=${data['action']}, productId=${data['productId']}');
+        showStep('3️⃣ JSON 파싱: ${data['productId']}');
         if (data['action'] == 'purchase') {
           productId = data['productId'];
         } else if (data['action'] == 'getProducts') {
@@ -279,18 +293,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
 
       // ⭐ 상품 로드 상태 확인
-      _sendDebugToWeb('🔷 상품 로드 상태: ${_iapService.products.length}개');
+      showStep('4️⃣ 상품 수: ${_iapService.products.length}개');
       print('[IAP] 로드된 상품 수: ${_iapService.products.length}');
 
       if (_iapService.products.isEmpty) {
-        _sendDebugToWeb('⚠️ 상품 없음 → 다시 로드 시도...');
+        showStep('⚠️ 상품 없음 → 로드 시도...', color: Colors.yellow);
         print('[IAP] ⚠️ 상품이 로드되지 않음 → 다시 로드 시도');
         await _iapService.loadProducts();
-        _sendDebugToWeb('🔷 재로드 후 상품 수: ${_iapService.products.length}개');
+        showStep('4️⃣ 재로드 후: ${_iapService.products.length}개');
         print('[IAP] 재로드 후 상품 수: ${_iapService.products.length}');
 
         if (_iapService.products.isEmpty) {
-          _sendDebugToWeb('❌ 상품 로드 실패!');
+          showStep('❌ 상품 로드 실패!', color: Colors.red);
           _onIAPError('상품 정보를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.');
           return;
         }
@@ -298,15 +312,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       // 상품 ID 목록 표시
       final productIds = _iapService.products.map((p) => p.id).join(', ');
-      _sendDebugToWeb('🔷 로드된 상품: $productIds');
-      _sendDebugToWeb('🔷 구매 시작: $productId');
+      showStep('5️⃣ 구매 시작: $productId');
 
       // 구매 시작 (await 추가!)
       final success = await _iapService.purchase(productId);
-      _sendDebugToWeb('🔷 구매 요청 결과: success=$success');
+      showStep('6️⃣ 구매 결과: $success', color: success ? Colors.green : Colors.red);
       print('[IAP] 구매 요청 완료: success=$success');
     } catch (e) {
-      _sendDebugToWeb('❌ IAP 오류: $e');
+      showStep('❌ 오류: $e', color: Colors.red);
       print('[IAP] 요청 처리 오류: $e');
       _onIAPError(e.toString());
     }
