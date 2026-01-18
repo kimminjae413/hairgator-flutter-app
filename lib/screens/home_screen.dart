@@ -1103,24 +1103,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         controller.addJavaScriptHandler(
           handlerName: 'IAPChannel',
           callback: (args) {
-            print('[iPad IAPChannel] 메시지 수신: $args');
+            print('[iPad IAPChannel] ========== 메시지 수신 ==========');
+            print('[iPad IAPChannel] args: $args');
+
             if (args.isNotEmpty) {
               final message = args[0].toString();
-              _sendDebugToWeb('🔷 iPad IAPChannel 수신!');
-              _sendDebugToWeb('🔷 메시지: $message');
+              print('[iPad IAPChannel] message: $message');
 
-              // alert 표시 (디버그)
-              controller.evaluateJavascript(source: '''
-                alert('🔷 iPad InAppWebView에서 메시지 수신!\\n\\n' + '$message');
-              ''');
+              // 스낵바로 수신 확인 표시
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('iPad IAP 요청 수신: $message'),
+                    backgroundColor: Colors.blue,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
 
               // IAP 요청 처리
               _handleIAPRequest(message).then((_) {
-                print('[iPad IAPChannel] 처리 완료');
-                _sendDebugToWeb('✅ iPad IAP 처리 완료');
+                print('[iPad IAPChannel] ✅ 처리 완료');
               }).catchError((e) {
-                print('[iPad IAPChannel] 오류: $e');
-                _sendDebugToWeb('❌ iPad IAP 오류: $e');
+                print('[iPad IAPChannel] ❌ 오류: $e');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('iPad IAP 오류: $e'),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
               });
             }
             return null;
