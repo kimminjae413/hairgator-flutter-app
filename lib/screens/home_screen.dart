@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart' as inapp;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:image_picker/image_picker.dart';
@@ -38,6 +39,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late WebViewController _webViewController;
   String? _idToken;
   bool _webViewReady = false; // WebView 초기화 완료 플래그
+
+  // ⭐ iPad 전용 InAppWebView
+  bool _isIPad = false;
+  inapp.InAppWebViewController? _inAppWebViewController;
 
   // ⭐ iOS 스피너 숨김 타이머
   Timer? _spinnerHideTimer;
@@ -71,19 +76,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && _webViewReady && Platform.isIOS) {
       print('[HomeScreen] 앱 resumed (iOS) → 스피너 강제 숨김');
-      _injectSpinnerHider();
+      if (_isIPad) {
+        _injectSpinnerHiderInApp();
+      } else {
+        _injectSpinnerHider();
+      }
     }
   }
 
   Future<void> _initializeApp() async {
+    // 0. iPad 감지 (iOS에서 600dp 이상)
+    if (Platform.isIOS) {
+      final shortestSide = MediaQuery.of(context).size.shortestSide;
+      _isIPad = shortestSide >= 600;
+      print('[HomeScreen] iPad 감지: $_isIPad (shortestSide: $shortestSide)');
+    }
+
     // 1. 권한 요청 (카메라, 사진)
     await _requestPermissions();
 
     // 2. iOS 인앱결제 초기화
     await _initializeIAP();
 
-    // 3. WebView 초기화
-    await _initWebViewWithAuth();
+    // 3. WebView 초기화 (iPad는 InAppWebView, 그 외는 webview_flutter)
+    if (_isIPad) {
+      await _initInAppWebViewWithAuth();
+    } else {
+      await _initWebViewWithAuth();
+    }
 
     // 4. 탭 구독
     _watchTabs();
@@ -146,7 +166,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!mounted) return;
 
     // WebView에 구매 성공 알림
-    _webViewController.runJavaScript('''
+    final jsCode = '''
       console.log('[Flutter IAP] 구매 성공: $productId, $tokens 토큰');
       if (window.onIAPSuccess) {
         window.onIAPSuccess('$productId', $tokens);
@@ -155,7 +175,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         alert('$tokens 토큰이 충전되었습니다!');
         location.reload();
       }
-    ''');
+    ''';
+
+    // iPad는 InAppWebView, 그 외는 webview_flutter
+    if (_isIPad && _inAppWebViewController != null) {
+      _inAppWebViewController!.evaluateJavascript(source: jsCode);
+    } else {
+      _webViewController.runJavaScript(jsCode);
+    }
 
     // 스낵바 알림
     ScaffoldMessenger.of(context).showSnackBar(
@@ -172,12 +199,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!mounted) return;
 
     // WebView에 구매 실패 알림
-    _webViewController.runJavaScript('''
+    final jsCode = '''
       console.log('[Flutter IAP] 구매 실패: $error');
       if (window.onIAPError) {
         window.onIAPError('$error');
       }
-    ''');
+    ''';
+
+    // iPad는 InAppWebView, 그 외는 webview_flutter
+    if (_isIPad && _inAppWebViewController != null) {
+      _inAppWebViewController!.evaluateJavascript(source: jsCode);
+    } else {
+      _webViewController.runJavaScript(jsCode);
+    }
 
     // 스낵바 알림 (취소는 알림 안 함)
     if (!error.contains('취소')) {
@@ -237,12 +271,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }).toList();
 
     final productsJson = jsonEncode(products);
-    _webViewController.runJavaScript('''
+    final jsCode = '''
       console.log('[Flutter IAP] 상품 목록 수신');
       if (window.onIAPProducts) {
         window.onIAPProducts($productsJson);
       }
-    ''');
+    ''';
+
+    // iPad는 InAppWebView, 그 외는 webview_flutter
+    if (_isIPad && _inAppWebViewController != null) {
+      _inAppWebViewController!.evaluateJavascript(source: jsCode);
+    } else {
+      _webViewController.runJavaScript(jsCode);
+    }
   }
 
   /// Firebase User에서 Firestore 문서 ID 생성
@@ -455,6 +496,300 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           _injectSpinnerHiderSilent();
         }
       });
+    }
+  }
+
+  /// ⭐ iPad 전용 InAppWebView 초기화 (JavaScript Channel 지원)
+  Future<void> _initInAppWebViewWithAuth() async {
+    // Firebase ID Token 가져오기 (강제 갱신)
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        _idToken = await user.getIdToken(true);
+        print('[InAppWebView] Firebase ID Token 획득 (강제 갱신): ${_idToken?.substring(0, 20)}...');
+      } else {
+        print('[InAppWebView] 로그인된 사용자 없음 → 로그인 화면으로 이동');
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (route) => false,
+          );
+        }
+        return;
+      }
+    } catch (e) {
+      print('[InAppWebView] Token 획득 실패: $e → 로그인 화면으로 이동');
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+      return;
+    }
+
+    _webViewReady = true;
+    print('[InAppWebView] iPad InAppWebView 준비 완료');
+
+    // ⭐ iOS 주기적 스피너 숨김 타이머
+    _spinnerHideTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+      if (_webViewReady && !_isLoading && _inAppWebViewController != null) {
+        _injectSpinnerHiderSilentInApp();
+      }
+    });
+  }
+
+  /// iPad InAppWebView용 스피너 숨김 (조용한 버전)
+  Future<void> _injectSpinnerHiderSilentInApp() async {
+    try {
+      await _inAppWebViewController?.evaluateJavascript(source: '''
+        (function() {
+          var byId = document.getElementById('loadingOverlay');
+          if (byId && (byId.classList.contains('visible') || byId.style.display !== 'none')) {
+            byId.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important;';
+            byId.classList.remove('visible');
+          }
+          document.querySelectorAll('.loading-overlay.visible').forEach(function(el) {
+            el.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important;';
+            el.classList.remove('visible');
+          });
+        })();
+      ''');
+    } catch (e) {
+      // 에러 무시 (조용한 버전)
+    }
+  }
+
+  /// iPad InAppWebView에서 IAP 요청 처리
+  void _handleIAPRequestFromInApp(String message) {
+    print('[iPad IAP] InAppWebView에서 구매 요청: $message');
+    _addConsoleLog('[iPad IAP 요청] $message');
+
+    try {
+      String productId = message;
+
+      if (message.startsWith('{')) {
+        final data = jsonDecode(message);
+        if (data['action'] == 'purchase') {
+          productId = data['productId'];
+        } else if (data['action'] == 'getProducts') {
+          _sendProductsToWebInApp();
+          return;
+        }
+      }
+
+      // 상품 로드 상태 확인
+      if (_iapService.products.isEmpty) {
+        print('[iPad IAP] 상품이 아직 로드되지 않음, 로드 시도...');
+        _iapService.loadProducts().then((_) {
+          print('[iPad IAP] 상품 로드 완료, 구매 시작: $productId');
+          _iapService.purchase(productId);
+        });
+      } else {
+        print('[iPad IAP] 구매 시작: $productId');
+        _iapService.purchase(productId);
+      }
+    } catch (e) {
+      print('[iPad IAP] 요청 처리 오류: $e');
+      _onIAPError(e.toString());
+    }
+  }
+
+  /// iPad InAppWebView에 상품 목록 전달
+  void _sendProductsToWebInApp() {
+    final products = _iapService.products.map((p) => {
+      'id': p.id,
+      'title': p.title,
+      'description': p.description,
+      'price': p.price,
+      'tokens': IAPService.productTokens[p.id] ?? 0,
+    }).toList();
+
+    final productsJson = jsonEncode(products);
+    _inAppWebViewController?.evaluateJavascript(source: '''
+      console.log('[Flutter IAP] 상품 목록 수신');
+      if (window.onIAPProducts) {
+        window.onIAPProducts($productsJson);
+      }
+    ''');
+  }
+
+  /// iPad InAppWebView 위젯 빌드
+  Widget _buildIPadWebView() {
+    return inapp.InAppWebView(
+      initialUrlRequest: inapp.URLRequest(
+        url: inapp.WebUri(_getUrlWithToken('https://app.hairgator.kr')),
+      ),
+      initialSettings: inapp.InAppWebViewSettings(
+        javaScriptEnabled: true,
+        mediaPlaybackRequiresUserGesture: false,
+        allowsInlineMediaPlayback: true,
+        allowsBackForwardNavigationGestures: true,
+      ),
+      onWebViewCreated: (controller) {
+        _inAppWebViewController = controller;
+        print('[InAppWebView] iPad WebView 생성됨');
+
+        // JavaScript Handlers 등록
+        controller.addJavaScriptHandler(
+          handlerName: 'FlutterChannel',
+          callback: (args) {
+            if (args.isNotEmpty) {
+              _handleJavaScriptMessage(args[0].toString());
+            }
+            return null;
+          },
+        );
+
+        controller.addJavaScriptHandler(
+          handlerName: 'DownloadChannel',
+          callback: (args) {
+            if (args.isNotEmpty) {
+              _downloadAndSaveImage(args[0].toString());
+            }
+            return null;
+          },
+        );
+
+        controller.addJavaScriptHandler(
+          handlerName: 'ConsoleLogChannel',
+          callback: (args) {
+            if (args.isNotEmpty) {
+              _addConsoleLog(args[0].toString());
+            }
+            return null;
+          },
+        );
+
+        // ⭐ iPad IAP 핸들러 등록
+        controller.addJavaScriptHandler(
+          handlerName: 'IAPChannel',
+          callback: (args) {
+            print('[InAppWebView] IAPChannel 콜백! args: $args');
+            if (args.isNotEmpty) {
+              _handleIAPRequestFromInApp(args[0].toString());
+            }
+            return null;
+          },
+        );
+      },
+      onLoadStart: (controller, url) {
+        setState(() => _isLoading = true);
+        print('[InAppWebView] 페이지 로드 시작: $url');
+      },
+      onLoadStop: (controller, url) async {
+        setState(() => _isLoading = false);
+        print('[InAppWebView] 페이지 로드 완료: $url');
+
+        // JavaScript Channel 브릿지 주입 (InAppWebView 방식)
+        await controller.evaluateJavascript(source: '''
+          // InAppWebView JavaScript Handler 브릿지
+          window.FlutterChannel = {
+            postMessage: function(msg) {
+              window.flutter_inappwebview.callHandler('FlutterChannel', msg);
+            }
+          };
+          window.DownloadChannel = {
+            postMessage: function(msg) {
+              window.flutter_inappwebview.callHandler('DownloadChannel', msg);
+            }
+          };
+          window.ConsoleLogChannel = {
+            postMessage: function(msg) {
+              window.flutter_inappwebview.callHandler('ConsoleLogChannel', msg);
+            }
+          };
+          // ⭐ iPad IAPChannel 브릿지
+          window.IAPChannel = {
+            postMessage: function(msg) {
+              console.log('[IAPChannel Bridge] postMessage 호출:', msg);
+              window.flutter_inappwebview.callHandler('IAPChannel', msg);
+            }
+          };
+          console.log('[InAppWebView] JavaScript Channel 브릿지 등록 완료 (iPad)');
+        ''');
+
+        // 토큰 주입
+        _injectAuthTokenInApp();
+
+        // 스피너 숨김
+        _injectSpinnerHiderInApp();
+
+        // login.html 감지
+        final urlStr = url.toString();
+        if (urlStr.contains('login.html') || urlStr.endsWith('/login')) {
+          _loginRedirectCount++;
+          print('[InAppWebView] ⚠️ login.html 감지! (${_loginRedirectCount}/$_maxLoginRedirects)');
+          if (_loginRedirectCount <= _maxLoginRedirects) {
+            controller.loadUrl(
+              urlRequest: inapp.URLRequest(
+                url: inapp.WebUri(_getUrlWithToken('https://app.hairgator.kr')),
+              ),
+            );
+          } else {
+            _handleLogout();
+          }
+        } else {
+          _loginRedirectCount = 0;
+        }
+      },
+      onReceivedError: (controller, request, error) {
+        print('[InAppWebView] 에러: ${error.description}');
+      },
+    );
+  }
+
+  /// iPad InAppWebView에 토큰 주입
+  Future<void> _injectAuthTokenInApp() async {
+    if (_idToken == null || _inAppWebViewController == null) return;
+
+    try {
+      await _inAppWebViewController!.evaluateJavascript(source: '''
+        if (window.handleFirebaseToken) {
+          window.handleFirebaseToken('$_idToken');
+        } else {
+          console.log('[Flutter] Firebase token ready: ${_idToken?.substring(0, 20)}...');
+          window.flutterFirebaseToken = '$_idToken';
+        }
+      ''');
+    } catch (e) {
+      print('[InAppWebView] 토큰 주입 에러: $e');
+    }
+  }
+
+  /// iPad InAppWebView 스피너 숨김
+  Future<void> _injectSpinnerHiderInApp() async {
+    try {
+      await _inAppWebViewController?.evaluateJavascript(source: '''
+        (function() {
+          function forceHideSpinner() {
+            var found = false;
+            var byId = document.getElementById('loadingOverlay');
+            if (byId) {
+              byId.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;';
+              byId.classList.remove('visible');
+              byId.classList.add('force-hide');
+              found = true;
+            }
+            var overlays = document.querySelectorAll('.loading-overlay');
+            overlays.forEach(function(el) {
+              el.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;';
+              el.classList.remove('visible');
+              el.classList.add('force-hide');
+              found = true;
+            });
+            return found;
+          }
+          forceHideSpinner();
+          setTimeout(forceHideSpinner, 50);
+          setTimeout(forceHideSpinner, 100);
+          setTimeout(forceHideSpinner, 200);
+          setTimeout(forceHideSpinner, 500);
+          console.log('[Flutter Spinner Hider] ✅ iPad 스피너 강제 숨김 실행됨');
+        })();
+      ''');
+    } catch (e) {
+      print('[InAppWebView] 스피너 숨김 에러: $e');
     }
   }
 
@@ -803,11 +1138,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         );
 
         // 웹에 결과 전달
-        _webViewController.runJavaScript('''
+        final jsCode = '''
           if (window.onImageSaved) {
             window.onImageSaved(true);
           }
-        ''');
+        ''';
+        if (_isIPad && _inAppWebViewController != null) {
+          _inAppWebViewController!.evaluateJavascript(source: jsCode);
+        } else {
+          _webViewController.runJavaScript(jsCode);
+        }
       }
     } catch (e) {
       print('[Flutter] 이미지 저장 에러: $e');
@@ -855,7 +1195,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     // SPA 라우터 방식: JavaScript로 해시만 변경 (페이지 새로고침 없음)
     // 사이드바도 닫기
-    _webViewController.runJavaScript('''
+    final jsCode = '''
       // 사이드바 닫기
       if (window.closeSidebar) {
         window.closeSidebar();
@@ -871,7 +1211,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       window.location.hash = '$hashRoute';
       console.log('[Flutter] 탭 네비게이션: #$hashRoute');
-    ''');
+    ''';
+
+    // iPad는 InAppWebView, 그 외는 webview_flutter
+    if (_isIPad && _inAppWebViewController != null) {
+      _inAppWebViewController!.evaluateJavascript(source: jsCode);
+    } else {
+      _webViewController.runJavaScript(jsCode);
+    }
   }
 
   /// 탭의 해시 라우트 결정 (meta 기반)
@@ -900,18 +1247,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       body: SafeArea(
         child: Stack(
           children: [
-            // WebView with improved touch handling
-            WebViewWidget(
-              controller: _webViewController,
-              gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-                Factory<VerticalDragGestureRecognizer>(
-                  () => VerticalDragGestureRecognizer(),
-                ),
-                Factory<HorizontalDragGestureRecognizer>(
-                  () => HorizontalDragGestureRecognizer(),
-                ),
-              },
-            ),
+            // ⭐ iPad는 InAppWebView, 그 외는 webview_flutter
+            if (_isIPad)
+              _buildIPadWebView()
+            else
+              WebViewWidget(
+                controller: _webViewController,
+                gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                  Factory<VerticalDragGestureRecognizer>(
+                    () => VerticalDragGestureRecognizer(),
+                  ),
+                  Factory<HorizontalDragGestureRecognizer>(
+                    () => HorizontalDragGestureRecognizer(),
+                  ),
+                },
+              ),
 
             // 로딩 인디케이터
             if (_isLoading)
