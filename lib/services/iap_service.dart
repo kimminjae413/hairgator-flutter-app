@@ -126,13 +126,12 @@ class IAPService {
 
       print('[IAP] 구매 요청: ${product.id} (${product.price})');
 
-      // 구매 파라미터 생성 (소모성 상품)
+      // 구매 파라미터 생성 (비갱신 구독)
       final purchaseParam = PurchaseParam(productDetails: product);
 
-      // 구매 시작
-      final success = await _iap.buyConsumable(
+      // 구매 시작 (비갱신 구독은 buyNonConsumable 사용)
+      final success = await _iap.buyNonConsumable(
         purchaseParam: purchaseParam,
-        autoConsume: true,
       );
 
       print('[IAP] 구매 요청 결과: $success');
