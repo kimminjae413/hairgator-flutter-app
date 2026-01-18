@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart' as inapp; // iPad 전용
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:image_picker/image_picker.dart';
@@ -39,10 +38,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late WebViewController _webViewController;
   String? _idToken;
   bool _webViewReady = false; // WebView 초기화 완료 플래그
-
-  // ⭐ iPad 전용: InAppWebView 사용
-  bool _isIPad = false;
-  inapp.InAppWebViewController? _inAppWebViewController;
 
   // ⭐ iOS 스피너 숨김 타이머
   Timer? _spinnerHideTimer;
@@ -81,21 +76,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _initializeApp() async {
-    // 0. iPad 감지 (화면 크기 기반)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final shortestSide = MediaQuery.of(context).size.shortestSide;
-      _isIPad = Platform.isIOS && shortestSide >= 600; // 600dp 이상이면 iPad
-      print('[HomeScreen] iPad 감지: $_isIPad (shortestSide: $shortestSide)');
-    });
-
     // 1. 권한 요청 (카메라, 사진)
     await _requestPermissions();
 
     // 2. iOS 인앱결제 초기화
     await _initializeIAP();
 
-    // 3. WebView 초기화 (iPad가 아닌 경우만 기존 WebView 사용)
-    // iPad는 build에서 InAppWebView 사용
+    // 3. WebView 초기화
     await _initWebViewWithAuth();
 
     // 4. 탭 구독
@@ -137,10 +124,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final initialized = await _iapService.initialize();
     if (initialized) {
       print('[IAP] 인앱결제 초기화 성공');
-      print('[IAP] 로드된 상품 수: ${_iapService.products.length}');
-      for (var p in _iapService.products) {
-        print('[IAP] 상품: ${p.id} - ${p.title} - ${p.price}');
-      }
 
       // 구매 성공 콜백
       _iapService.onPurchaseSuccess = (productId, tokens, receipt) {
@@ -161,9 +144,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// IAP 구매 성공 처리 - WebView에 결과 전달
   void _onIAPSuccess(String productId, int tokens, String? receipt) {
     if (!mounted) return;
-
-    // ⭐ 디버그 배너에 성공 표시
-    _sendDebugToWeb('✅ 구매 성공! $productId → $tokens 토큰');
 
     // WebView에 구매 성공 알림
     _webViewController.runJavaScript('''
@@ -191,15 +171,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _onIAPError(String error) {
     if (!mounted) return;
 
-    // ⭐ 디버그 배너에 에러 표시
-    _sendDebugToWeb('❌ 구매 실패: $error');
-
     // WebView에 구매 실패 알림
-    final escapedError = error.replaceAll("'", "\\'");
     _webViewController.runJavaScript('''
-      console.log('[Flutter IAP] 구매 실패: $escapedError');
+      console.log('[Flutter IAP] 구매 실패: $error');
       if (window.onIAPError) {
-        window.onIAPError('$escapedError');
+        window.onIAPError('$error');
       }
     ''');
 
@@ -215,32 +191,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// ⭐ 웹 디버그 배너에 메시지 전송
-  void _sendDebugToWeb(String message) {
-    try {
-      final escaped = message.replaceAll("'", "\\'").replaceAll('\n', '\\n');
-      _webViewController.runJavaScript('''
-        if (typeof showDebugBanner === 'function') {
-          showDebugBanner('$escaped');
-        } else {
-          console.log('[Flutter Debug] $escaped');
-        }
-      ''');
-      print('[Debug→Web] $message');
-    } catch (e) {
-      print('[Debug→Web] 전송 실패: $e');
-    }
-  }
-
   /// WebView에서 IAP 구매 요청 처리
-  Future<void> _handleIAPRequest(String message) async {
+  void _handleIAPRequest(String message) {
     print('[IAP] WebView에서 구매 요청: $message');
     _addConsoleLog('[IAP 요청] $message');
 
     if (!Platform.isIOS) {
       print('[IAP] iOS가 아니므로 IAP 불가');
-      _sendDebugToWeb('❌ iOS가 아님 - IAP 불가');
-      _onIAPError('iOS에서만 인앱결제가 가능합니다.');
       return;
     }
 
@@ -252,7 +209,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (message.startsWith('{')) {
         // JSON 형식
         final data = jsonDecode(message);
-        _sendDebugToWeb('🔷 JSON 파싱: action=${data['action']}, productId=${data['productId']}');
         if (data['action'] == 'purchase') {
           productId = data['productId'];
         } else if (data['action'] == 'getProducts') {
@@ -262,35 +218,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       }
 
-      // ⭐ 상품 로드 상태 확인
-      _sendDebugToWeb('🔷 상품 로드 상태: ${_iapService.products.length}개');
-      print('[IAP] 로드된 상품 수: ${_iapService.products.length}');
-
-      if (_iapService.products.isEmpty) {
-        _sendDebugToWeb('⚠️ 상품 없음 → 다시 로드 시도...');
-        print('[IAP] ⚠️ 상품이 로드되지 않음 → 다시 로드 시도');
-        await _iapService.loadProducts();
-        _sendDebugToWeb('🔷 재로드 후 상품 수: ${_iapService.products.length}개');
-        print('[IAP] 재로드 후 상품 수: ${_iapService.products.length}');
-
-        if (_iapService.products.isEmpty) {
-          _sendDebugToWeb('❌ 상품 로드 실패!');
-          _onIAPError('상품 정보를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.');
-          return;
-        }
-      }
-
-      // 상품 ID 목록 표시
-      final productIds = _iapService.products.map((p) => p.id).join(', ');
-      _sendDebugToWeb('🔷 로드된 상품: $productIds');
-      _sendDebugToWeb('🔷 구매 시작: $productId');
-
-      // 구매 시작 (await 추가!)
-      final success = await _iapService.purchase(productId);
-      _sendDebugToWeb('🔷 구매 요청 결과: success=$success');
-      print('[IAP] 구매 요청 완료: success=$success');
+      // 구매 시작
+      _iapService.purchase(productId);
     } catch (e) {
-      _sendDebugToWeb('❌ IAP 오류: $e');
       print('[IAP] 요청 처리 오류: $e');
       _onIAPError(e.toString());
     }
@@ -424,36 +354,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         },
       );
 
-    // ⭐ IAPChannel 항상 등록 (iPad 호환성 - Platform.isIOS가 iPad에서 문제될 수 있음)
-    // iOS 체크는 콜백 내에서 수행
-    _webViewController.addJavaScriptChannel(
-      'IAPChannel',
-      onMessageReceived: (JavaScriptMessage message) {
-        print('[IAPChannel] ========== 메시지 수신 ==========');
-        print('[IAPChannel] Platform.isIOS: ${Platform.isIOS}');
-        print('[IAPChannel] 메시지: ${message.message}');
-
-        // ⭐ alert으로 확실하게 확인 (디버그용)
-        _webViewController.runJavaScript('''
-          alert('🔷 Flutter IAPChannel 콜백 실행!\\n\\nPlatform.isIOS: ${Platform.isIOS}\\n\\n' + '${message.message.replaceAll("'", "\\'")}');
-        ''');
-
-        // ⭐ 웹에 즉시 피드백
-        _sendDebugToWeb('🔷 Flutter IAPChannel 수신!');
-        _sendDebugToWeb('🔷 Platform.isIOS: ${Platform.isIOS}');
-        _sendDebugToWeb('🔷 메시지: ${message.message}');
-
-        // 비동기 처리는 별도로 (await 없이)
-        _handleIAPRequest(message.message).then((_) {
-          print('[IAPChannel] 처리 완료');
-        }).catchError((e) {
-          print('[IAPChannel] 처리 오류: $e');
-          _sendDebugToWeb('❌ Flutter 오류: $e');
-          _onIAPError(e.toString());
-        });
-      },
-    );
-    print('[IAPChannel] ✅ IAPChannel 등록 완료 (iOS/iPad 공통)');
+    // ⭐ iOS에서만 IAPChannel 등록 (Android에서는 외부결제 사용)
+    if (Platform.isIOS) {
+      _webViewController.addJavaScriptChannel(
+        'IAPChannel',
+        onMessageReceived: (JavaScriptMessage message) {
+          _handleIAPRequest(message.message);
+        },
+      );
+    }
 
     _webViewController.setNavigationDelegate(
         NavigationDelegate(
@@ -530,17 +439,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       iosController.setAllowsBackForwardNavigationGestures(true);
 
       print('[WebView] iOS WebView 설정 완료');
-    }
-
-    // ⭐ iPad Desktop Mode 문제 해결: Mobile User-Agent 강제 설정
-    // iPad는 기본적으로 "Macintosh" UA를 보내 Desktop Mode로 동작
-    // 이로 인해 JavaScript Channel 콜백이 작동 안 될 수 있음
-    if (Platform.isIOS) {
-      const mobileUserAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) '
-          'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1 '
-          'HairgatorApp/1.0';
-      _webViewController.setUserAgent(mobileUserAgent);
-      print('[WebView] ⭐ iPad 호환성: Mobile User-Agent 설정됨');
     }
 
     _webViewController
@@ -955,7 +853,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     print('[HomeScreen] 탭 $index (${tab.menuName}) → #$hashRoute');
 
-    final jsCode = '''
+    // SPA 라우터 방식: JavaScript로 해시만 변경 (페이지 새로고침 없음)
+    // 사이드바도 닫기
+    _webViewController.runJavaScript('''
       // 사이드바 닫기
       if (window.closeSidebar) {
         window.closeSidebar();
@@ -971,17 +871,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       window.location.hash = '$hashRoute';
       console.log('[Flutter] 탭 네비게이션: #$hashRoute');
-    ''';
-
-    // ⭐ iPad는 InAppWebView, 나머지는 기존 WebView 사용
-    final shortestSide = MediaQuery.of(context).size.shortestSide;
-    final isIPad = Platform.isIOS && shortestSide >= 600;
-
-    if (isIPad && _inAppWebViewController != null) {
-      _inAppWebViewController!.evaluateJavascript(source: jsCode);
-    } else {
-      _webViewController.runJavaScript(jsCode);
-    }
+    ''');
   }
 
   /// 탭의 해시 라우트 결정 (meta 기반)
@@ -1006,29 +896,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // ⭐ iPad 감지 (build에서 다시 체크)
-    final shortestSide = MediaQuery.of(context).size.shortestSide;
-    final isIPad = Platform.isIOS && shortestSide >= 600;
-
     return Scaffold(
       body: SafeArea(
         child: Stack(
           children: [
-            // ⭐ iPad는 InAppWebView 사용, iPhone/Android는 기존 WebView
-            if (isIPad)
-              _buildIPadWebView()
-            else
-              WebViewWidget(
-                controller: _webViewController,
-                gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-                  Factory<VerticalDragGestureRecognizer>(
-                    () => VerticalDragGestureRecognizer(),
-                  ),
-                  Factory<HorizontalDragGestureRecognizer>(
-                    () => HorizontalDragGestureRecognizer(),
-                  ),
-                },
-              ),
+            // WebView with improved touch handling
+            WebViewWidget(
+              controller: _webViewController,
+              gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                Factory<VerticalDragGestureRecognizer>(
+                  () => VerticalDragGestureRecognizer(),
+                ),
+                Factory<HorizontalDragGestureRecognizer>(
+                  () => HorizontalDragGestureRecognizer(),
+                ),
+              },
+            ),
 
             // 로딩 인디케이터
             if (_isLoading)
@@ -1060,152 +943,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               }).toList(),
             ),
     );
-  }
-
-  /// ⭐ iPad 전용 InAppWebView 빌드
-  Widget _buildIPadWebView() {
-    final url = _getUrlWithToken('https://app.hairgator.kr');
-    print('[iPad] InAppWebView 빌드: $url');
-
-    return inapp.InAppWebView(
-      initialUrlRequest: inapp.URLRequest(url: inapp.WebUri(url)),
-      initialSettings: inapp.InAppWebViewSettings(
-        javaScriptEnabled: true,
-        mediaPlaybackRequiresUserGesture: false,
-        allowsInlineMediaPlayback: true,
-        // iPad에서 모바일 모드 강제
-        preferredContentMode: inapp.UserPreferredContentMode.MOBILE,
-        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) '
-            'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1 '
-            'HairgatorApp/1.0',
-      ),
-      onWebViewCreated: (controller) {
-        _inAppWebViewController = controller;
-        print('[iPad] InAppWebView 생성됨');
-
-        // ⭐ IAPChannel JavaScript Handler 등록
-        controller.addJavaScriptHandler(
-          handlerName: 'IAPChannel',
-          callback: (args) {
-            print('[iPad IAPChannel] 메시지 수신: $args');
-            if (args.isNotEmpty) {
-              final message = args[0].toString();
-              _sendDebugToWebInApp('🔷 iPad InAppWebView IAPChannel 수신!');
-              _sendDebugToWebInApp('🔷 메시지: $message');
-
-              // alert 표시 (디버그)
-              controller.evaluateJavascript(source: '''
-                alert('🔷 iPad InAppWebView에서 메시지 수신!\\n\\n' + '$message');
-              ''');
-
-              // IAP 요청 처리
-              _handleIAPRequest(message).then((_) {
-                print('[iPad IAPChannel] 처리 완료');
-              }).catchError((e) {
-                print('[iPad IAPChannel] 오류: $e');
-                _sendDebugToWebInApp('❌ iPad IAP 오류: $e');
-              });
-            }
-            return null;
-          },
-        );
-
-        // FlutterChannel 등록
-        controller.addJavaScriptHandler(
-          handlerName: 'FlutterChannel',
-          callback: (args) {
-            if (args.isNotEmpty) {
-              _handleJavaScriptMessage(args[0].toString());
-            }
-            return null;
-          },
-        );
-
-        // DownloadChannel 등록
-        controller.addJavaScriptHandler(
-          handlerName: 'DownloadChannel',
-          callback: (args) {
-            if (args.isNotEmpty) {
-              _downloadAndSaveImage(args[0].toString());
-            }
-            return null;
-          },
-        );
-      },
-      onLoadStart: (controller, url) {
-        setState(() => _isLoading = true);
-      },
-      onLoadStop: (controller, url) async {
-        setState(() => _isLoading = false);
-        _webViewReady = true;
-        print('[iPad] 페이지 로드 완료: $url');
-
-        // ⭐ InAppWebView용 JavaScript Channel 브릿지 주입
-        await controller.evaluateJavascript(source: '''
-          // IAPChannel 브릿지 (InAppWebView 방식)
-          window.IAPChannel = {
-            postMessage: function(msg) {
-              console.log('[iPad IAPChannel Bridge] postMessage 호출:', msg);
-              window.flutter_inappwebview.callHandler('IAPChannel', msg);
-            }
-          };
-
-          // FlutterChannel 브릿지
-          window.FlutterChannel = {
-            postMessage: function(msg) {
-              window.flutter_inappwebview.callHandler('FlutterChannel', msg);
-            }
-          };
-
-          // DownloadChannel 브릿지
-          window.DownloadChannel = {
-            postMessage: function(msg) {
-              window.flutter_inappwebview.callHandler('DownloadChannel', msg);
-            }
-          };
-
-          console.log('[iPad] ✅ JavaScript Channel 브릿지 설정 완료');
-        ''');
-
-        // 토큰 주입
-        if (_idToken != null) {
-          await controller.evaluateJavascript(source: '''
-            if (window.handleFirebaseToken) {
-              window.handleFirebaseToken('$_idToken');
-            } else {
-              window.flutterFirebaseToken = '$_idToken';
-            }
-          ''');
-        }
-
-        // 스피너 숨김
-        await controller.evaluateJavascript(source: '''
-          var overlay = document.getElementById('loadingOverlay');
-          if (overlay) {
-            overlay.style.display = 'none';
-            overlay.classList.remove('visible');
-          }
-        ''');
-      },
-      onConsoleMessage: (controller, consoleMessage) {
-        _addConsoleLog('[iPad Console] ${consoleMessage.message}');
-      },
-    );
-  }
-
-  /// iPad InAppWebView용 디버그 메시지 전송
-  void _sendDebugToWebInApp(String message) {
-    if (_inAppWebViewController != null) {
-      final escaped = message.replaceAll("'", "\\'").replaceAll('\n', '\\n');
-      _inAppWebViewController!.evaluateJavascript(source: '''
-        if (typeof showDebugBanner === 'function') {
-          showDebugBanner('$escaped');
-        } else {
-          console.log('[Flutter Debug] $escaped');
-        }
-      ''');
-      print('[Debug→iPad] $message');
-    }
   }
 
   Widget _buildTabIcon(TabConfig tab, bool isSelected) {
