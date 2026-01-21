@@ -1297,6 +1297,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Factory<HorizontalDragGestureRecognizer>(
                   () => HorizontalDragGestureRecognizer(),
                 ),
+                // ⭐ iPad #products 페이지 클릭 문제 해결
+                Factory<TapGestureRecognizer>(
+                  () => TapGestureRecognizer(),
+                ),
+                Factory<LongPressGestureRecognizer>(
+                  () => LongPressGestureRecognizer(),
+                ),
               },
             ),
 
