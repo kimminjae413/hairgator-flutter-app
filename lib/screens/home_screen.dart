@@ -76,11 +76,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && _webViewReady && Platform.isIOS) {
       print('[HomeScreen] 앱 resumed (iOS) → 스피너 강제 숨김');
-      if (_isIPad) {
-        _injectSpinnerHiderInApp();
-      } else {
-        _injectSpinnerHider();
-      }
+      _injectSpinnerHider();
     }
   }
 
@@ -98,12 +94,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // 2. iOS 인앱결제 초기화
     await _initializeIAP();
 
-    // 3. WebView 초기화 (iPad는 InAppWebView, 그 외는 webview_flutter)
-    if (_isIPad) {
-      await _initInAppWebViewWithAuth();
-    } else {
-      await _initWebViewWithAuth();
-    }
+    // 3. WebView 초기화 (모두 webview_flutter 사용)
+    // ⭐ InAppWebView 성능 문제로 iPad도 webview_flutter 사용
+    // IAP는 URL scheme (hairgator://iap/xxx)으로 통신
+    await _initWebViewWithAuth();
 
     // 4. 탭 구독
     _watchTabs();
@@ -177,12 +171,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     ''';
 
-    // iPad는 InAppWebView, 그 외는 webview_flutter
-    if (_isIPad && _inAppWebViewController != null) {
-      _inAppWebViewController!.evaluateJavascript(source: jsCode);
-    } else {
-      _webViewController.runJavaScript(jsCode);
-    }
+    // webview_flutter 사용
+    _webViewController.runJavaScript(jsCode);
 
     // 스낵바 알림
     ScaffoldMessenger.of(context).showSnackBar(
@@ -206,12 +196,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     ''';
 
-    // iPad는 InAppWebView, 그 외는 webview_flutter
-    if (_isIPad && _inAppWebViewController != null) {
-      _inAppWebViewController!.evaluateJavascript(source: jsCode);
-    } else {
-      _webViewController.runJavaScript(jsCode);
-    }
+    // webview_flutter 사용
+    _webViewController.runJavaScript(jsCode);
 
     // 스낵바 알림 (취소는 알림 안 함)
     if (!error.contains('취소')) {
@@ -278,12 +264,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     ''';
 
-    // iPad는 InAppWebView, 그 외는 webview_flutter
-    if (_isIPad && _inAppWebViewController != null) {
-      _inAppWebViewController!.evaluateJavascript(source: jsCode);
-    } else {
-      _webViewController.runJavaScript(jsCode);
-    }
+    // webview_flutter 사용
+    _webViewController.runJavaScript(jsCode);
   }
 
   /// Firebase User에서 Firestore 문서 ID 생성
@@ -407,6 +389,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     _webViewController.setNavigationDelegate(
         NavigationDelegate(
+          // ⭐ iPad IAP용 URL scheme intercept (hairgator://iap/xxx)
+          onNavigationRequest: (NavigationRequest request) {
+            final url = request.url;
+            print('[WebView] 네비게이션 요청: $url');
+
+            // IAP URL scheme 처리 (iPad에서 JavaScript Channel 대신 사용)
+            if (url.startsWith('hairgator://iap/')) {
+              final productId = url.replaceFirst('hairgator://iap/', '');
+              print('[WebView] ⭐ IAP URL scheme 감지: $productId');
+              _handleIAPRequest(productId);
+              return NavigationDecision.prevent; // 네비게이션 차단
+            }
+
+            return NavigationDecision.navigate; // 다른 URL은 정상 처리
+          },
           onPageStarted: (String url) {
             setState(() => _isLoading = true);
           },
@@ -744,6 +741,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       },
       onReceivedError: (controller, request, error) {
         print('[InAppWebView] 에러: ${error.description}');
+      },
+      // ⭐ iPad 디버그: 웹 콘솔 로그 캡처
+      onConsoleMessage: (controller, consoleMessage) {
+        final msg = consoleMessage.message;
+        print('[iPad WebConsole] ${consoleMessage.messageLevel}: $msg');
+
+        // 중요 로그만 스낵바로 표시 (대분류 탭 관련)
+        if (msg.contains('selectMainTab') || msg.contains('대분류') ||
+            msg.contains('스타일 로드') || msg.contains('멈춤') ||
+            msg.contains('ERROR') || msg.contains('에러')) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('[DEBUG] $msg', style: const TextStyle(fontSize: 10)),
+                duration: const Duration(seconds: 2),
+                backgroundColor: Colors.blue.shade800,
+              ),
+            );
+          }
+        }
       },
     );
   }
@@ -1152,11 +1169,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             window.onImageSaved(true);
           }
         ''';
-        if (_isIPad && _inAppWebViewController != null) {
-          _inAppWebViewController!.evaluateJavascript(source: jsCode);
-        } else {
-          _webViewController.runJavaScript(jsCode);
-        }
+        // webview_flutter 사용
+        _webViewController.runJavaScript(jsCode);
       }
     } catch (e) {
       print('[Flutter] 이미지 저장 에러: $e');
@@ -1222,12 +1236,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       console.log('[Flutter] 탭 네비게이션: #$hashRoute');
     ''';
 
-    // iPad는 InAppWebView, 그 외는 webview_flutter
-    if (_isIPad && _inAppWebViewController != null) {
-      _inAppWebViewController!.evaluateJavascript(source: jsCode);
-    } else {
-      _webViewController.runJavaScript(jsCode);
-    }
+    // webview_flutter 사용
+    _webViewController.runJavaScript(jsCode);
   }
 
   /// 탭의 해시 라우트 결정 (meta 기반)
@@ -1256,21 +1266,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       body: SafeArea(
         child: Stack(
           children: [
-            // ⭐ iPad는 InAppWebView, 그 외는 webview_flutter
-            if (_isIPad)
-              _buildIPadWebView()
-            else
-              WebViewWidget(
-                controller: _webViewController,
-                gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-                  Factory<VerticalDragGestureRecognizer>(
-                    () => VerticalDragGestureRecognizer(),
-                  ),
-                  Factory<HorizontalDragGestureRecognizer>(
-                    () => HorizontalDragGestureRecognizer(),
-                  ),
-                },
-              ),
+            // ⭐ 모두 webview_flutter 사용 (InAppWebView 성능 문제)
+            WebViewWidget(
+              controller: _webViewController,
+              gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                Factory<VerticalDragGestureRecognizer>(
+                  () => VerticalDragGestureRecognizer(),
+                ),
+                Factory<HorizontalDragGestureRecognizer>(
+                  () => HorizontalDragGestureRecognizer(),
+                ),
+              },
+            ),
 
             // 로딩 인디케이터
             if (_isLoading)
