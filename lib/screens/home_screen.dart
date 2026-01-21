@@ -485,14 +485,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // WebView 준비 완료 플래그 설정
     _webViewReady = true;
 
-    // ⭐ iOS 전용: 주기적 스피너 숨김 타이머 (bfcache 문제 해결)
+    // ⭐ iOS 전용: 주기적 타이머 (스피너 숨김 + IAP polling)
     if (Platform.isIOS) {
-      print('[WebView] iOS 감지 → 주기적 스피너 숨김 타이머 시작');
+      print('[WebView] iOS 감지 → 주기적 타이머 시작 (스피너 + IAP)');
       _spinnerHideTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
         if (_webViewReady && !_isLoading) {
           _injectSpinnerHiderSilent();
+          _checkPendingIAPRequest(); // ⭐ iPad IAP polling
         }
       });
+    }
+  }
+
+  /// ⭐ iPad용 IAP polling (JavaScript Channel 대체)
+  Future<void> _checkPendingIAPRequest() async {
+    try {
+      final result = await _webViewController.runJavaScriptReturningResult(
+        'window.pendingIAPRequest || ""'
+      );
+      // 결과에서 따옴표 제거
+      final productId = result.toString().replaceAll('"', '').replaceAll("'", "");
+      if (productId.isNotEmpty && productId != 'null' && productId != 'undefined') {
+        print('[WebView] ⭐ IAP polling 감지: $productId');
+        // 변수 초기화
+        await _webViewController.runJavaScript('window.pendingIAPRequest = null');
+        // IAP 처리
+        _handleIAPRequest(productId);
+      }
+    } catch (e) {
+      // 무시 (페이지 로딩 중 에러 발생 가능)
     }
   }
 
