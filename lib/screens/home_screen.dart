@@ -625,6 +625,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         mediaPlaybackRequiresUserGesture: false,
         allowsInlineMediaPlayback: true,
         allowsBackForwardNavigationGestures: true,
+        // ⭐ iPad 성능 최적화 설정
+        cacheEnabled: true,
+        clearCache: false,
+        useOnLoadResource: false,
+        useShouldInterceptRequest: false,
+        // 이미지 로딩 최적화
+        loadsImagesAutomatically: true,
+        // 하드웨어 가속
+        hardwareAcceleration: true,
       ),
       onWebViewCreated: (controller) {
         _inAppWebViewController = controller;
