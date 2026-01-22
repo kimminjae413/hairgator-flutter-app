@@ -752,7 +752,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           window.IAPChannel = {
             postMessage: function(msg) {
               console.log('[IAPChannel Bridge] postMessage 호출:', msg);
-              window.flutter_inappwebview.callHandler('IAPChannel', msg);
+              // 화면에 디버그 표시
+              document.body.insertAdjacentHTML('afterbegin',
+                '<div style="position:fixed;top:240px;left:0;right:0;background:#ff00ff;color:white;padding:5px;z-index:999991;font-size:11px;">[Bridge] callHandler 호출 시도: ' + msg + '</div>'
+              );
+              try {
+                window.flutter_inappwebview.callHandler('IAPChannel', msg).then(function(result) {
+                  console.log('[IAPChannel Bridge] callHandler 성공:', result);
+                  document.body.insertAdjacentHTML('afterbegin',
+                    '<div style="position:fixed;top:270px;left:0;right:0;background:#00ffff;color:black;padding:5px;z-index:999990;font-size:11px;">[Bridge] callHandler 성공!</div>'
+                  );
+                }).catch(function(err) {
+                  console.error('[IAPChannel Bridge] callHandler 에러:', err);
+                  document.body.insertAdjacentHTML('afterbegin',
+                    '<div style="position:fixed;top:270px;left:0;right:0;background:#ff0000;color:white;padding:5px;z-index:999990;font-size:11px;">[Bridge] callHandler 에러: ' + err + '</div>'
+                  );
+                });
+              } catch(e) {
+                console.error('[IAPChannel Bridge] try-catch 에러:', e);
+                document.body.insertAdjacentHTML('afterbegin',
+                  '<div style="position:fixed;top:270px;left:0;right:0;background:#ff0000;color:white;padding:5px;z-index:999990;font-size:11px;">[Bridge] 에러: ' + e + '</div>'
+                );
+              }
             }
           };
           console.log('[InAppWebView] JavaScript Channel 브릿지 등록 완료 (iPad)');
