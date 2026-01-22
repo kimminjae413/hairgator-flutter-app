@@ -94,10 +94,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // 2. iOS 인앱결제 초기화
     await _initializeIAP();
 
-    // 3. WebView 초기화 (모두 webview_flutter 사용)
-    // ⭐ InAppWebView 성능 문제로 iPad도 webview_flutter 사용
-    // IAP는 URL scheme (hairgator://iap/xxx)으로 통신
-    await _initWebViewWithAuth();
+    // 3. WebView 초기화
+    // ⭐ iPad는 InAppWebView 사용 (JavaScript Channel이 webview_flutter에서 안됨)
+    // iPhone/Android는 webview_flutter 사용
+    if (_isIPad) {
+      await _initInAppWebViewWithAuth();
+    } else {
+      await _initWebViewWithAuth();
+    }
 
     // 4. 탭 구독
     _watchTabs();
@@ -1295,25 +1299,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       body: SafeArea(
         child: Stack(
           children: [
-            // ⭐ 모두 webview_flutter 사용 (InAppWebView 성능 문제)
-            WebViewWidget(
-              controller: _webViewController,
-              gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-                Factory<VerticalDragGestureRecognizer>(
-                  () => VerticalDragGestureRecognizer(),
-                ),
-                Factory<HorizontalDragGestureRecognizer>(
-                  () => HorizontalDragGestureRecognizer(),
-                ),
-                // ⭐ iPad #products 페이지 클릭 문제 해결
-                Factory<TapGestureRecognizer>(
-                  () => TapGestureRecognizer(),
-                ),
-                Factory<LongPressGestureRecognizer>(
-                  () => LongPressGestureRecognizer(),
-                ),
-              },
-            ),
+            // ⭐ iPad는 InAppWebView, 나머지는 webview_flutter
+            if (_isIPad)
+              _buildIPadWebView()
+            else
+              WebViewWidget(
+                controller: _webViewController,
+                gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                  Factory<VerticalDragGestureRecognizer>(
+                    () => VerticalDragGestureRecognizer(),
+                  ),
+                  Factory<HorizontalDragGestureRecognizer>(
+                    () => HorizontalDragGestureRecognizer(),
+                  ),
+                  Factory<TapGestureRecognizer>(
+                    () => TapGestureRecognizer(),
+                  ),
+                  Factory<LongPressGestureRecognizer>(
+                    () => LongPressGestureRecognizer(),
+                  ),
+                },
+              ),
 
             // 로딩 인디케이터
             if (_isLoading)
