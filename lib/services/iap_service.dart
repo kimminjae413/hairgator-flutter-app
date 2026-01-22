@@ -95,16 +95,13 @@ class IAPService {
     return true;
   }
 
-  /// ⭐ 미완료 트랜잭션 정리 (iOS 전용)
+  /// 미완료 트랜잭션 정리 (iOS 전용)
   /// 이전 구매 시도에서 완료되지 않은 트랜잭션이 있으면 새 결제 팝업이 안 뜸
   Future<void> _clearPendingTransactions() async {
     try {
       print('[IAP] 미완료 트랜잭션 확인 중...');
-      onDebugMessage?.call('🔍 미완료 트랜잭션 확인 중...', const Color(0xFF607D8B));
-
       final transactions = await SKPaymentQueueWrapper().transactions();
       print('[IAP] 발견된 트랜잭션: ${transactions.length}개');
-      onDebugMessage?.call('📋 트랜잭션 ${transactions.length}개 발견', const Color(0xFF795548));
 
       for (final transaction in transactions) {
         print('[IAP] 트랜잭션: ${transaction.payment.productIdentifier} - ${transaction.transactionState}');
@@ -112,17 +109,14 @@ class IAPService {
         // 완료되지 않은 트랜잭션 정리
         if (transaction.transactionState != SKPaymentTransactionStateWrapper.purchased &&
             transaction.transactionState != SKPaymentTransactionStateWrapper.restored) {
-          print('[IAP] ⚠️ 미완료 트랜잭션 정리: ${transaction.payment.productIdentifier}');
-          onDebugMessage?.call('🧹 정리: ${transaction.payment.productIdentifier}', const Color(0xFFFF5722));
+          print('[IAP] 미완료 트랜잭션 정리: ${transaction.payment.productIdentifier}');
           await SKPaymentQueueWrapper().finishTransaction(transaction);
         }
       }
 
       print('[IAP] 미완료 트랜잭션 정리 완료');
-      onDebugMessage?.call('✅ 트랜잭션 정리 완료', const Color(0xFF4CAF50));
     } catch (e) {
       print('[IAP] 트랜잭션 정리 오류: $e');
-      onDebugMessage?.call('❌ 정리 오류: $e', const Color(0xFFF44336));
     }
   }
 
@@ -191,11 +185,9 @@ class IAPService {
       print('[IAP] ⭐ buyNonConsumable 결과: $success');
 
       if (success) {
-        print('[IAP] ✅ buyNonConsumable true! purchaseStream 대기 중...');
-        onDebugMessage?.call('🎯 buyNonConsumable=true, 스트림 대기...', const Color(0xFF00BCD4));
+        print('[IAP] buyNonConsumable true, purchaseStream 대기 중...');
       } else {
-        print('[IAP] ❌ buyNonConsumable이 false 반환!');
-        onDebugMessage?.call('❌ buyNonConsumable=false!', const Color(0xFFF44336));
+        print('[IAP] buyNonConsumable이 false 반환');
         onPurchaseError?.call('구매 요청이 실패했습니다.');
       }
 
@@ -213,17 +205,14 @@ class IAPService {
 
   /// 구매 업데이트 처리
   void _onPurchaseUpdate(List<PurchaseDetails> purchases) {
-    print('[IAP] ⭐⭐⭐ _onPurchaseUpdate 호출됨! purchases: ${purchases.length}개');
-    onDebugMessage?.call('📥 purchaseStream 수신: ${purchases.length}개', const Color(0xFF9C27B0));
+    print('[IAP] _onPurchaseUpdate 호출됨, purchases: ${purchases.length}개');
 
     for (final purchase in purchases) {
       print('[IAP] 구매 상태: ${purchase.productID} - ${purchase.status}');
-      onDebugMessage?.call('📦 ${purchase.productID}: ${purchase.status}', const Color(0xFF673AB7));
 
       switch (purchase.status) {
         case PurchaseStatus.pending:
           print('[IAP] 구매 대기 중...');
-          onDebugMessage?.call('⏳ 결제 대기 중... (pending)', const Color(0xFFFF9800));
           break;
 
         case PurchaseStatus.purchased:
@@ -231,8 +220,8 @@ class IAPService {
           break;
 
         case PurchaseStatus.restored:
-          // Consumable products should not be restored
-          print('[IAP] Ignoring restore: ${purchase.productID}');
+          // Non-Consumable/Non-Renewing Subscription이 복원됨
+          print('[IAP] RESTORED 감지: ${purchase.productID}');
           _completePurchase(purchase);
           break;
 

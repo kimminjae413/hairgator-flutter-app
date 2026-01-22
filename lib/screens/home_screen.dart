@@ -155,18 +155,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _onIAPError(error);
       };
 
-      // ⭐ 디버그 메시지 콜백 (스낵바로 표시)
-      _iapService.onDebugMessage = (message, color) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(message),
-              backgroundColor: color,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-      };
+      // 디버그 메시지 콜백 (제거됨 - 프로덕션용)
     } else {
       print('[IAP] 인앱결제 초기화 실패');
     }
@@ -403,22 +392,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         },
       );
 
-    // ⭐ iOS에서만 IAPChannel 등록 (Android에서는 외부결제 사용)
+    // iOS에서만 IAPChannel 등록 (Android에서는 외부결제 사용)
     if (Platform.isIOS) {
       _webViewController.addJavaScriptChannel(
         'IAPChannel',
         onMessageReceived: (JavaScriptMessage message) {
-          print('[IAPChannel] ⭐⭐⭐ 메시지 수신: ${message.message}');
-          // 디버그: 웹에 수신 확인 메시지 표시
-          _webViewController.runJavaScript('''
-            document.body.insertAdjacentHTML('afterbegin',
-              '<div style="position:fixed;top:210px;left:0;right:0;background:#00ff00;color:black;padding:10px;z-index:999992;font-size:14px;font-weight:bold;">✅ Flutter IAPChannel 수신: ${message.message}</div>'
-            );
-          ''');
+          print('[IAPChannel] 메시지 수신: ${message.message}');
           _handleIAPRequest(message.message);
         },
       );
-      print('[WebView] ⭐ IAPChannel 등록 완료 (iOS)');
+      print('[WebView] IAPChannel 등록 완료 (iOS)');
     }
 
     _webViewController.setNavigationDelegate(
@@ -615,19 +598,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// iPad InAppWebView에서 IAP 요청 처리
   Future<void> _handleIAPRequestFromInApp(String message) async {
-    print('[iPad IAP] ⭐⭐⭐ InAppWebView에서 구매 요청: $message');
+    print('[iPad IAP] InAppWebView에서 구매 요청: $message');
     _addConsoleLog('[iPad IAP 요청] $message');
-
-    // ⭐ 디버그: 스낵바로 콜백 수신 확인
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('🔔 Flutter 콜백 수신: $message'),
-          backgroundColor: Colors.purple,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    }
 
     try {
       String productId = message;
@@ -645,89 +617,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // 상품 로드 상태 확인
       if (_iapService.products.isEmpty) {
         print('[iPad IAP] 상품이 아직 로드되지 않음, 로드 시도...');
-        // ⭐ 디버그: 상품 로드 상태
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('📦 상품 로드 중... ($productId)'),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
         _iapService.loadProducts().then((_) async {
           print('[iPad IAP] 상품 로드 완료, 구매 시작: $productId');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('✅ 상품 로드 완료! 구매 시작: $productId'),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          }
-          final purchaseResult = await _iapService.purchase(productId);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(purchaseResult
-                  ? '✅ purchase() 성공! 결제 팝업 대기 중...'
-                  : '❌ purchase() 실패! (false 반환)'),
-                backgroundColor: purchaseResult ? Colors.teal : Colors.red,
-                duration: const Duration(seconds: 3),
-              ),
-            );
-          }
+          await _iapService.purchase(productId);
         }).catchError((e) {
           print('[iPad IAP] 상품 로드 실패: $e');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('❌ 상품 로드 실패: $e'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 3),
-              ),
-            );
-          }
+          _onIAPError(e.toString());
         });
       } else {
         print('[iPad IAP] 구매 시작: $productId (상품 수: ${_iapService.products.length})');
-        // ⭐ 디버그: 구매 시작
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('🛒 구매 시작: $productId (상품 ${_iapService.products.length}개)'),
-              backgroundColor: Colors.blue,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-        // ⭐ await하고 결과 확인
-        final purchaseResult = await _iapService.purchase(productId);
-        print('[iPad IAP] purchase() 반환값: $purchaseResult');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(purchaseResult
-                ? '✅ purchase() 성공! 결제 팝업 대기 중...'
-                : '❌ purchase() 실패! (false 반환)'),
-              backgroundColor: purchaseResult ? Colors.teal : Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
+        await _iapService.purchase(productId);
       }
     } catch (e) {
       print('[iPad IAP] 요청 처리 오류: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ IAP 오류: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
       _onIAPError(e.toString());
     }
   }
@@ -807,21 +709,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           },
         );
 
-        // ⭐ iPad IAP 핸들러 등록
+        // iPad IAP 핸들러 등록
         controller.addJavaScriptHandler(
           handlerName: 'IAPChannel',
           callback: (args) {
-            print('[InAppWebView] ⭐⭐⭐ IAPChannel 콜백 실행됨! args: $args');
-            // ⭐ 디버그: 핸들러 콜백 도달 확인
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('⚡ IAPChannel 핸들러 콜백! args: $args'),
-                  backgroundColor: Colors.deepPurple,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            }
+            print('[InAppWebView] IAPChannel 콜백 실행됨! args: $args');
             if (args.isNotEmpty) {
               _handleIAPRequestFromInApp(args[0].toString());
             }
@@ -855,32 +747,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               window.flutter_inappwebview.callHandler('ConsoleLogChannel', msg);
             }
           };
-          // ⭐ iPad IAPChannel 브릿지
+          // iPad IAPChannel 브릿지
           window.IAPChannel = {
             postMessage: function(msg) {
               console.log('[IAPChannel Bridge] postMessage 호출:', msg);
-              // 화면에 디버그 표시
-              document.body.insertAdjacentHTML('afterbegin',
-                '<div style="position:fixed;top:240px;left:0;right:0;background:#ff00ff;color:white;padding:5px;z-index:999991;font-size:11px;">[Bridge] callHandler 호출 시도: ' + msg + '</div>'
-              );
-              try {
-                window.flutter_inappwebview.callHandler('IAPChannel', msg).then(function(result) {
-                  console.log('[IAPChannel Bridge] callHandler 성공:', result);
-                  document.body.insertAdjacentHTML('afterbegin',
-                    '<div style="position:fixed;top:270px;left:0;right:0;background:#00ffff;color:black;padding:5px;z-index:999990;font-size:11px;">[Bridge] callHandler 성공!</div>'
-                  );
-                }).catch(function(err) {
-                  console.error('[IAPChannel Bridge] callHandler 에러:', err);
-                  document.body.insertAdjacentHTML('afterbegin',
-                    '<div style="position:fixed;top:270px;left:0;right:0;background:#ff0000;color:white;padding:5px;z-index:999990;font-size:11px;">[Bridge] callHandler 에러: ' + err + '</div>'
-                  );
-                });
-              } catch(e) {
-                console.error('[IAPChannel Bridge] try-catch 에러:', e);
-                document.body.insertAdjacentHTML('afterbegin',
-                  '<div style="position:fixed;top:270px;left:0;right:0;background:#ff0000;color:white;padding:5px;z-index:999990;font-size:11px;">[Bridge] 에러: ' + e + '</div>'
-                );
-              }
+              window.flutter_inappwebview.callHandler('IAPChannel', msg);
             }
           };
           console.log('[InAppWebView] JavaScript Channel 브릿지 등록 완료 (iPad)');
@@ -913,25 +784,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       onReceivedError: (controller, request, error) {
         print('[InAppWebView] 에러: ${error.description}');
       },
-      // ⭐ iPad 디버그: 웹 콘솔 로그 캡처
+      // iPad 웹 콘솔 로그 캡처 (터미널에만 출력)
       onConsoleMessage: (controller, consoleMessage) {
-        final msg = consoleMessage.message;
-        print('[iPad WebConsole] ${consoleMessage.messageLevel}: $msg');
-
-        // 중요 로그만 스낵바로 표시 (대분류 탭 관련)
-        if (msg.contains('selectMainTab') || msg.contains('대분류') ||
-            msg.contains('스타일 로드') || msg.contains('멈춤') ||
-            msg.contains('ERROR') || msg.contains('에러')) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('[DEBUG] $msg', style: const TextStyle(fontSize: 10)),
-                duration: const Duration(seconds: 2),
-                backgroundColor: Colors.blue.shade800,
-              ),
-            );
-          }
-        }
+        print('[iPad WebConsole] ${consoleMessage.messageLevel}: ${consoleMessage.message}');
       },
     );
   }
