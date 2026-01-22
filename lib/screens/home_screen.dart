@@ -382,9 +382,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _webViewController.addJavaScriptChannel(
         'IAPChannel',
         onMessageReceived: (JavaScriptMessage message) {
+          print('[IAPChannel] ⭐⭐⭐ 메시지 수신: ${message.message}');
+          // 디버그: 웹에 수신 확인 메시지 표시
+          _webViewController.runJavaScript('''
+            document.body.insertAdjacentHTML('afterbegin',
+              '<div style="position:fixed;top:210px;left:0;right:0;background:#00ff00;color:black;padding:10px;z-index:999992;font-size:14px;font-weight:bold;">✅ Flutter IAPChannel 수신: ${message.message}</div>'
+            );
+          ''');
           _handleIAPRequest(message.message);
         },
       );
+      print('[WebView] ⭐ IAPChannel 등록 완료 (iOS)');
     }
 
     _webViewController.setNavigationDelegate(
