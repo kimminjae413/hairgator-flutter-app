@@ -176,7 +176,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ''';
 
     // webview_flutter 사용
-    _webViewController.runJavaScript(jsCode);
+    _runJavaScript(jsCode);
 
     // 스낵바 알림
     ScaffoldMessenger.of(context).showSnackBar(
@@ -201,7 +201,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ''';
 
     // webview_flutter 사용
-    _webViewController.runJavaScript(jsCode);
+    _runJavaScript(jsCode);
 
     // 스낵바 알림 (취소는 알림 안 함)
     if (!error.contains('취소')) {
@@ -269,7 +269,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ''';
 
     // webview_flutter 사용
-    _webViewController.runJavaScript(jsCode);
+    _runJavaScript(jsCode);
+  }
+
+  /// ⭐ 헬퍼: JavaScript 실행 (iPad는 InAppWebView, 나머지는 webview_flutter)
+  Future<void> _runJavaScript(String jsCode) async {
+    if (_isIPad && _inAppWebViewController != null) {
+      await _inAppWebViewController!.evaluateJavascript(source: jsCode);
+    } else {
+      await _runJavaScript(jsCode);
+    }
   }
 
   /// Firebase User에서 Firestore 문서 ID 생성
@@ -497,13 +506,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // WebView 준비 완료 플래그 설정
     _webViewReady = true;
 
-    // ⭐ iOS 전용: 주기적 타이머 (스피너 숨김 + IAP polling)
-    if (Platform.isIOS) {
-      print('[WebView] iOS 감지 → 주기적 타이머 시작 (스피너 + IAP)');
+    // ⭐ iPhone 전용: 주기적 타이머 (스피너 숨김 + IAP polling)
+    // iPad는 InAppWebView 사용하므로 별도 처리
+    if (Platform.isIOS && !_isIPad) {
+      print('[WebView] iPhone 감지 → 주기적 타이머 시작 (스피너 + IAP)');
       _spinnerHideTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
         if (_webViewReady && !_isLoading) {
           _injectSpinnerHiderSilent();
-          _checkPendingIAPRequest(); // ⭐ iPad IAP polling
+          _checkPendingIAPRequest();
         }
       });
     }
@@ -1203,7 +1213,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           }
         ''';
         // webview_flutter 사용
-        _webViewController.runJavaScript(jsCode);
+        _runJavaScript(jsCode);
       }
     } catch (e) {
       print('[Flutter] 이미지 저장 에러: $e');
@@ -1269,8 +1279,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       console.log('[Flutter] 탭 네비게이션: #$hashRoute');
     ''';
 
-    // webview_flutter 사용
-    _webViewController.runJavaScript(jsCode);
+    // ⭐ iPad는 InAppWebView, 나머지는 webview_flutter
+    if (_isIPad && _inAppWebViewController != null) {
+      _inAppWebViewController!.evaluateJavascript(source: jsCode);
+    } else {
+      _runJavaScript(jsCode);
+    }
   }
 
   /// 탭의 해시 라우트 결정 (meta 기반)
