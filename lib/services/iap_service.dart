@@ -3,6 +3,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show Color;
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:http/http.dart' as http;
@@ -153,8 +154,12 @@ class IAPService {
 
       print('[IAP] ⭐ buyNonConsumable 결과: $success');
 
-      if (!success) {
+      if (success) {
+        print('[IAP] ✅ buyNonConsumable true! purchaseStream 대기 중...');
+        onDebugMessage?.call('🎯 buyNonConsumable=true, 스트림 대기...', const Color(0xFF00BCD4));
+      } else {
         print('[IAP] ❌ buyNonConsumable이 false 반환!');
+        onDebugMessage?.call('❌ buyNonConsumable=false!', const Color(0xFFF44336));
         onPurchaseError?.call('구매 요청이 실패했습니다.');
       }
 
@@ -167,14 +172,22 @@ class IAPService {
     }
   }
 
+  // ⭐ 디버그: 스낵바 표시용 콜백 (home_screen에서 설정)
+  Function(String message, Color color)? onDebugMessage;
+
   /// 구매 업데이트 처리
   void _onPurchaseUpdate(List<PurchaseDetails> purchases) {
+    print('[IAP] ⭐⭐⭐ _onPurchaseUpdate 호출됨! purchases: ${purchases.length}개');
+    onDebugMessage?.call('📥 purchaseStream 수신: ${purchases.length}개', const Color(0xFF9C27B0));
+
     for (final purchase in purchases) {
       print('[IAP] 구매 상태: ${purchase.productID} - ${purchase.status}');
+      onDebugMessage?.call('📦 ${purchase.productID}: ${purchase.status}', const Color(0xFF673AB7));
 
       switch (purchase.status) {
         case PurchaseStatus.pending:
           print('[IAP] 구매 대기 중...');
+          onDebugMessage?.call('⏳ 결제 대기 중... (pending)', const Color(0xFFFF9800));
           break;
 
         case PurchaseStatus.purchased:

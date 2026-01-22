@@ -154,6 +154,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         print('[IAP] 구매 실패: $error');
         _onIAPError(error);
       };
+
+      // ⭐ 디버그 메시지 콜백 (스낵바로 표시)
+      _iapService.onDebugMessage = (message, color) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: color,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      };
     } else {
       print('[IAP] 인앱결제 초기화 실패');
     }
