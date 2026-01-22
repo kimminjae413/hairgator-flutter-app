@@ -6,6 +6,8 @@ import 'dart:io';
 import 'dart:ui' show Color;
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
+import 'package:in_app_purchase_storekit/store_kit_wrappers.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -72,6 +74,9 @@ class IAPService {
 
     print('[IAP] 인앱결제 초기화 시작');
 
+    // ⭐ 미완료 트랜잭션 정리 (결제 팝업 안 뜨는 문제 해결)
+    await _clearPendingTransactions();
+
     // 기존 구독이 있으면 먼저 취소 (중복 리스너 방지)
     await _subscription?.cancel();
     _subscription = null;
@@ -88,6 +93,37 @@ class IAPService {
 
     print('[IAP] 인앱결제 초기화 완료');
     return true;
+  }
+
+  /// ⭐ 미완료 트랜잭션 정리 (iOS 전용)
+  /// 이전 구매 시도에서 완료되지 않은 트랜잭션이 있으면 새 결제 팝업이 안 뜸
+  Future<void> _clearPendingTransactions() async {
+    try {
+      print('[IAP] 미완료 트랜잭션 확인 중...');
+      onDebugMessage?.call('🔍 미완료 트랜잭션 확인 중...', const Color(0xFF607D8B));
+
+      final transactions = await SKPaymentQueueWrapper().transactions();
+      print('[IAP] 발견된 트랜잭션: ${transactions.length}개');
+      onDebugMessage?.call('📋 트랜잭션 ${transactions.length}개 발견', const Color(0xFF795548));
+
+      for (final transaction in transactions) {
+        print('[IAP] 트랜잭션: ${transaction.payment.productIdentifier} - ${transaction.transactionState}');
+
+        // 완료되지 않은 트랜잭션 정리
+        if (transaction.transactionState != SKPaymentTransactionStateWrapper.purchased &&
+            transaction.transactionState != SKPaymentTransactionStateWrapper.restored) {
+          print('[IAP] ⚠️ 미완료 트랜잭션 정리: ${transaction.payment.productIdentifier}');
+          onDebugMessage?.call('🧹 정리: ${transaction.payment.productIdentifier}', const Color(0xFFFF5722));
+          await SKPaymentQueueWrapper().finishTransaction(transaction);
+        }
+      }
+
+      print('[IAP] 미완료 트랜잭션 정리 완료');
+      onDebugMessage?.call('✅ 트랜잭션 정리 완료', const Color(0xFF4CAF50));
+    } catch (e) {
+      print('[IAP] 트랜잭션 정리 오류: $e');
+      onDebugMessage?.call('❌ 정리 오류: $e', const Color(0xFFF44336));
+    }
   }
 
   /// 상품 정보 로드
