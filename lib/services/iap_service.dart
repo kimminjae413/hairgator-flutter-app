@@ -222,6 +222,8 @@ class IAPService {
         case PurchaseStatus.restored:
           // Non-Consumable/Non-Renewing Subscription이 복원됨
           print('[IAP] RESTORED 감지: ${purchase.productID}');
+          // 사용자에게 이미 구매한 상품임을 알림
+          onPurchaseError?.call('이미 구매한 상품입니다. 다른 Apple ID로 로그인하거나 고객센터에 문의해주세요.');
           _completePurchase(purchase);
           break;
 
