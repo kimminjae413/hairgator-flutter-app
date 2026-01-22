@@ -111,33 +111,57 @@ class IAPService {
 
   /// 구매 요청
   Future<bool> purchase(String productId) async {
+    print('[IAP] ⭐⭐⭐ purchase() 호출됨: $productId');
+
     if (!Platform.isIOS) {
       print('[IAP] iOS가 아니므로 구매 불가');
       onPurchaseError?.call('iOS에서만 인앱결제가 가능합니다.');
       return false;
     }
 
+    // ⭐ 디버그: _iap 상태 확인
+    print('[IAP] InAppPurchase instance: $_iap');
+    final isAvailable = await _iap.isAvailable();
+    print('[IAP] isAvailable: $isAvailable');
+
+    if (!isAvailable) {
+      print('[IAP] ❌ 인앱결제를 사용할 수 없음!');
+      onPurchaseError?.call('인앱결제를 사용할 수 없습니다.');
+      return false;
+    }
+
     try {
       // 상품 찾기
+      print('[IAP] 상품 목록에서 검색: ${products.map((p) => p.id).toList()}');
       final product = products.firstWhere(
         (p) => p.id == productId,
         orElse: () => throw Exception('상품을 찾을 수 없습니다: $productId'),
       );
 
-      print('[IAP] 구매 요청: ${product.id} (${product.price})');
+      print('[IAP] 상품 찾음: ${product.id} (${product.price})');
+      print('[IAP] 상품 상세: title=${product.title}, description=${product.description}');
 
       // 구매 파라미터 생성 (비갱신 구독)
       final purchaseParam = PurchaseParam(productDetails: product);
+      print('[IAP] PurchaseParam 생성 완료');
 
       // 구매 시작 (비갱신 구독은 buyNonConsumable 사용)
+      print('[IAP] ⭐ buyNonConsumable 호출 직전...');
       final success = await _iap.buyNonConsumable(
         purchaseParam: purchaseParam,
       );
 
-      print('[IAP] 구매 요청 결과: $success');
+      print('[IAP] ⭐ buyNonConsumable 결과: $success');
+
+      if (!success) {
+        print('[IAP] ❌ buyNonConsumable이 false 반환!');
+        onPurchaseError?.call('구매 요청이 실패했습니다.');
+      }
+
       return success;
-    } catch (e) {
-      print('[IAP] 구매 요청 오류: $e');
+    } catch (e, stackTrace) {
+      print('[IAP] ❌ 구매 요청 오류: $e');
+      print('[IAP] 스택 트레이스: $stackTrace');
       onPurchaseError?.call(e.toString());
       return false;
     }

@@ -601,7 +601,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   /// iPad InAppWebView에서 IAP 요청 처리
-  void _handleIAPRequestFromInApp(String message) {
+  Future<void> _handleIAPRequestFromInApp(String message) async {
     print('[iPad IAP] ⭐⭐⭐ InAppWebView에서 구매 요청: $message');
     _addConsoleLog('[iPad IAP 요청] $message');
 
@@ -642,7 +642,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           );
         }
-        _iapService.loadProducts().then((_) {
+        _iapService.loadProducts().then((_) async {
           print('[iPad IAP] 상품 로드 완료, 구매 시작: $productId');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -653,7 +653,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             );
           }
-          _iapService.purchase(productId);
+          final purchaseResult = await _iapService.purchase(productId);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(purchaseResult
+                  ? '✅ purchase() 성공! 결제 팝업 대기 중...'
+                  : '❌ purchase() 실패! (false 반환)'),
+                backgroundColor: purchaseResult ? Colors.teal : Colors.red,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
         }).catchError((e) {
           print('[iPad IAP] 상품 로드 실패: $e');
           if (mounted) {
@@ -678,7 +689,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           );
         }
-        _iapService.purchase(productId);
+        // ⭐ await하고 결과 확인
+        final purchaseResult = await _iapService.purchase(productId);
+        print('[iPad IAP] purchase() 반환값: $purchaseResult');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(purchaseResult
+                ? '✅ purchase() 성공! 결제 팝업 대기 중...'
+                : '❌ purchase() 실패! (false 반환)'),
+              backgroundColor: purchaseResult ? Colors.teal : Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
       print('[iPad IAP] 요청 처리 오류: $e');
