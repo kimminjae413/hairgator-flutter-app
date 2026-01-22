@@ -277,7 +277,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_isIPad && _inAppWebViewController != null) {
       await _inAppWebViewController!.evaluateJavascript(source: jsCode);
     } else {
-      await _runJavaScript(jsCode);
+      await _webViewController.runJavaScript(jsCode);
     }
   }
 
@@ -602,8 +602,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// iPad InAppWebView에서 IAP 요청 처리
   void _handleIAPRequestFromInApp(String message) {
-    print('[iPad IAP] InAppWebView에서 구매 요청: $message');
+    print('[iPad IAP] ⭐⭐⭐ InAppWebView에서 구매 요청: $message');
     _addConsoleLog('[iPad IAP 요청] $message');
+
+    // ⭐ 디버그: 스낵바로 콜백 수신 확인
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🔔 Flutter 콜백 수신: $message'),
+          backgroundColor: Colors.purple,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
 
     try {
       String productId = message;
@@ -621,16 +632,65 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // 상품 로드 상태 확인
       if (_iapService.products.isEmpty) {
         print('[iPad IAP] 상품이 아직 로드되지 않음, 로드 시도...');
+        // ⭐ 디버그: 상품 로드 상태
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('📦 상품 로드 중... ($productId)'),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
         _iapService.loadProducts().then((_) {
           print('[iPad IAP] 상품 로드 완료, 구매 시작: $productId');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('✅ 상품 로드 완료! 구매 시작: $productId'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
           _iapService.purchase(productId);
+        }).catchError((e) {
+          print('[iPad IAP] 상품 로드 실패: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('❌ 상품 로드 실패: $e'),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
         });
       } else {
-        print('[iPad IAP] 구매 시작: $productId');
+        print('[iPad IAP] 구매 시작: $productId (상품 수: ${_iapService.products.length})');
+        // ⭐ 디버그: 구매 시작
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('🛒 구매 시작: $productId (상품 ${_iapService.products.length}개)'),
+              backgroundColor: Colors.blue,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
         _iapService.purchase(productId);
       }
     } catch (e) {
       print('[iPad IAP] 요청 처리 오류: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ IAP 오류: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
       _onIAPError(e.toString());
     }
   }
@@ -714,7 +774,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         controller.addJavaScriptHandler(
           handlerName: 'IAPChannel',
           callback: (args) {
-            print('[InAppWebView] IAPChannel 콜백! args: $args');
+            print('[InAppWebView] ⭐⭐⭐ IAPChannel 콜백 실행됨! args: $args');
+            // ⭐ 디버그: 핸들러 콜백 도달 확인
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('⚡ IAPChannel 핸들러 콜백! args: $args'),
+                  backgroundColor: Colors.deepPurple,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
             if (args.isNotEmpty) {
               _handleIAPRequestFromInApp(args[0].toString());
             }
