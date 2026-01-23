@@ -791,6 +791,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       onConsoleMessage: (controller, consoleMessage) {
         print('[iPad WebConsole] ${consoleMessage.messageLevel}: ${consoleMessage.message}');
       },
+      // ⭐ iPad 카메라/마이크 권한 허용 (퍼스널 컬러 등)
+      onPermissionRequest: (controller, request) async {
+        print('[InAppWebView] 권한 요청: ${request.resources}');
+        return inapp.PermissionResponse(
+          resources: request.resources,
+          action: inapp.PermissionResponseAction.GRANT,
+        );
+      },
     );
   }
 
