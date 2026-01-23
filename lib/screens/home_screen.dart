@@ -564,8 +564,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return;
     }
 
-    _webViewReady = true;
-    print('[InAppWebView] iPad InAppWebView 준비 완료');
+    // ⭐ setState() 호출하여 _idToken이 준비된 후 WebView 다시 빌드
+    setState(() {
+      _webViewReady = true;
+    });
+    print('[InAppWebView] iPad InAppWebView 준비 완료 (idToken: ${_idToken?.substring(0, 20)}...)');
 
     // ⭐ iOS 주기적 스피너 숨김 타이머
     _spinnerHideTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
@@ -1297,8 +1300,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: Stack(
           children: [
             // ⭐ iPad는 InAppWebView, 나머지는 webview_flutter
-            if (_isIPad)
+            // iPad: _webViewReady가 true일 때만 WebView 로드 (firebaseToken 준비 대기)
+            if (_isIPad && _webViewReady)
               _buildIPadWebView()
+            else if (_isIPad && !_webViewReady)
+              const Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFFE91E63),
+                ),
+              )
             else
               WebViewWidget(
                 controller: _webViewController,
