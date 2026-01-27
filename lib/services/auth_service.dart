@@ -251,13 +251,27 @@ class AuthService {
 
       // 카카오 사용자 정보 가져오기
       print('[KAKAO] 5. 사용자 정보 가져오기...');
-      final kakaoUser = await kakao.UserApi.instance.me();
+      kakao.User kakaoUser = await kakao.UserApi.instance.me();
       print('[KAKAO] 6. 사용자 정보: id=${kakaoUser.id}, email=${kakaoUser.kakaoAccount?.email}');
+
+      // 3. 이메일 동의 안 한 사용자 → 추가 동의 요청
+      if (kakaoUser.kakaoAccount?.email == null) {
+        print('[KAKAO] ⚠️ 이메일 미동의 → 추가 동의 요청');
+        try {
+          token = await kakao.UserApi.instance.loginWithNewScopes(['account_email']);
+          kakaoUser = await kakao.UserApi.instance.me();
+          print('[KAKAO] ✅ 이메일 추가 동의 완료: ${kakaoUser.kakaoAccount?.email}');
+        } catch (e) {
+          print('[KAKAO] ❌ 이메일 추가 동의 실패: $e');
+          lastKakaoError = '이메일 제공 동의가 필요합니다.';
+          return null;
+        }
+      }
 
       // 서버에서 Firebase Custom Token 받아오기
       print('[KAKAO] 7. Firebase Custom Token 요청...');
       final customToken = await _getFirebaseCustomToken(
-        kakaoAccessToken: token.accessToken,
+        kakaoAccessToken: token!.accessToken,
         kakaoId: kakaoUser.id.toString(),
         email: kakaoUser.kakaoAccount?.email,
         nickname: kakaoUser.kakaoAccount?.profile?.nickname,
@@ -325,6 +339,13 @@ class AuthService {
         return data['customToken'];
       } else {
         print('Custom Token API 에러: ${response.statusCode} ${response.body}');
+        // 서버에서 EMAIL_REQUIRED 에러 반환 시 상세 메시지 저장
+        try {
+          final errorData = jsonDecode(response.body);
+          if (errorData['errorCode'] == 'EMAIL_REQUIRED') {
+            lastKakaoError = errorData['error'] ?? '이메일 제공 동의가 필요합니다.';
+          }
+        } catch (_) {}
         return null;
       }
     } catch (e) {
